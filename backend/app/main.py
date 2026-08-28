@@ -17,23 +17,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Parse CORS origins from settings
-cors_env = settings.CORS_ORIGINS.strip()
-if cors_env == "*":
-    origins = ["*"]
-    allow_credentials = False
-else:
-    origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
-    if not origins:
-        origins = ["*"]
-        allow_credentials = False
-    else:
-        allow_credentials = True
-
+# Robust CORS Configuration: Allow all Vercel domains, localhost, and wildcard origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=allow_credentials,
+    allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*$",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -59,6 +48,10 @@ def root() -> Dict[str, Any]:
 
 
 @app.get("/health", tags=["System"], summary="Global Health Check")
-def health() -> Dict[str, str]:
+def health() -> Dict[str, Any]:
     """Top-level health check endpoint for cloud load balancers and orchestrators."""
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "service": "SIH26162 Thermal Fire Intelligence API",
+        "version": "1.0.0"
+    }
