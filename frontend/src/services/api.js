@@ -3,83 +3,78 @@ import axios from 'axios';
 /**
  * Resolves the API Base URL deterministically:
  * 1. If VITE_API_BASE_URL environment variable is provided, use it.
- * 2. In production (PROD mode) without VITE_API_BASE_URL, default to relative path '' (assumes reverse proxy or co-hosted API).
- * 3. In development (DEV mode), default to http://127.0.0.1:8000.
+ * 2. In development (DEV mode), default to http://127.0.0.1:8000.
+ * 3. In production, fallback to relative path.
  */
 const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL !== undefined && import.meta.env.VITE_API_BASE_URL !== '') {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  // Default to relative path to leverage Vite proxy in dev and unified hosting in prod
+  if (import.meta.env.DEV) {
+    return 'http://127.0.0.1:8000';
+  }
   return '';
 };
 
 export const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 25000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Auto-fallback retry: if relative proxy fails, retry directly against FastAPI port 8000
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (originalRequest && !originalRequest._retry && (!originalRequest.baseURL || originalRequest.baseURL === '')) {
-      originalRequest._retry = true;
-      originalRequest.baseURL = 'http://127.0.0.1:8000';
-      return apiClient(originalRequest);
-    }
-    return Promise.reject(error);
-  }
-);
+// Helper to ensure response is valid JSON object or array, not an HTML fallback page
+const ensureArray = (data) => (Array.isArray(data) ? data : []);
+const ensureObject = (data) => (data && typeof data === 'object' && !Array.isArray(data) && !data.includes?.('<!DOCTYPE') ? data : null);
 
 export const apiService = {
   getHealth: async () => {
     const response = await apiClient.get('/api/health');
+    if (typeof response.data === 'string' && response.data.includes('<!doctype')) {
+      throw new Error('Received HTML instead of JSON from API');
+    }
     return response.data;
   },
 
   getSummary: async () => {
     const response = await apiClient.get('/api/summary');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   getObservations: async () => {
     const response = await apiClient.get('/api/observations');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   getClusters: async () => {
     const response = await apiClient.get('/api/clusters');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   getRisk: async () => {
     const response = await apiClient.get('/api/risk');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   getGeoJSON: async () => {
     const response = await apiClient.get('/api/geojson');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   getIndustrialPolygons: async () => {
     const response = await apiClient.get('/api/osm-industrial');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   getMLEvaluation: async () => {
     const response = await apiClient.get('/api/ml-evaluation');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   getMLStatus: async () => {
     const response = await apiClient.get('/api/ml/status');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   predictML: async (payload) => {
@@ -89,22 +84,22 @@ export const apiService = {
 
   getDataset: async () => {
     const response = await apiClient.get('/api/dataset');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   getDatasetQuality: async () => {
     const response = await apiClient.get('/api/dataset/quality');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   getDatasetProvenance: async () => {
     const response = await apiClient.get('/api/dataset/provenance');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   getGroundTruth: async () => {
     const response = await apiClient.get('/api/ground-truth');
-    return response.data;
+    return ensureArray(response.data);
   },
 
   submitGroundTruthReview: async (payload) => {
@@ -114,7 +109,7 @@ export const apiService = {
 
   getGroundTruthQuality: async () => {
     const response = await apiClient.get('/api/ground-truth/quality');
-    return response.data;
+    return ensureObject(response.data);
   },
 
   refreshData: async (payload = {}) => {

@@ -8,13 +8,15 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
   const [sortField, setSortField] = useState('risk_score');
   const [sortAsc, setSortAsc] = useState(false);
 
+  const safeRiskData = Array.isArray(riskData) ? riskData : [];
+
   const classifications = useMemo(() => {
-    const set = new Set(riskData.map((r) => r.incident_classification).filter(Boolean));
+    const set = new Set(safeRiskData.map((r) => r.incident_classification).filter(Boolean));
     return ['ALL', ...Array.from(set)];
-  }, [riskData]);
+  }, [safeRiskData]);
 
   const filteredIncidents = useMemo(() => {
-    return riskData.filter((item) => {
+    return safeRiskData.filter((item) => {
       if (selectedRisk !== 'ALL' && item.risk_level !== selectedRisk) return false;
       if (selectedClass !== 'ALL' && item.incident_classification !== selectedClass) return false;
 
@@ -51,7 +53,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       }
       return sortAsc ? valA - valB : valB - valA;
     });
-  }, [riskData, selectedRisk, selectedClass, searchQuery, sortField, sortAsc]);
+  }, [safeRiskData, selectedRisk, selectedClass, searchQuery, sortField, sortAsc]);
 
   const handleSort = (field) => {
     if (sortField === field) {

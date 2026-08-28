@@ -14,27 +14,30 @@ import {
 } from 'lucide-react';
 
 export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
+  const safeObs = Array.isArray(observations) ? observations : [];
+  const safeRisk = Array.isArray(riskData) ? riskData : [];
+
   const [selectedDate, setSelectedDate] = useState('ALL');
-  const [selectedClusterId, setSelectedClusterId] = useState(riskData[0]?.cluster_id || 'CLUSTER_001');
+  const [selectedClusterId, setSelectedClusterId] = useState(safeRisk[0]?.cluster_id || 'CLUSTER_001');
 
   // Extract unique observation dates dynamically
   const availableDates = useMemo(() => {
-    const dates = Array.from(new Set(observations.map((o) => o.acq_date).filter(Boolean))).sort();
+    const dates = Array.from(new Set(safeObs.map((o) => o.acq_date).filter(Boolean))).sort();
     return ['ALL', ...dates];
-  }, [observations]);
+  }, [safeObs]);
 
   const filteredObservations = useMemo(() => {
-    if (selectedDate === 'ALL') return observations;
-    return observations.filter((o) => o.acq_date === selectedDate);
-  }, [observations, selectedDate]);
+    if (selectedDate === 'ALL') return safeObs;
+    return safeObs.filter((o) => o.acq_date === selectedDate);
+  }, [safeObs, selectedDate]);
 
   const selectedIncident = useMemo(() => {
-    return riskData.find((r) => r.cluster_id === selectedClusterId) || riskData[0];
-  }, [riskData, selectedClusterId]);
+    return safeRisk.find((r) => r.cluster_id === selectedClusterId) || safeRisk[0];
+  }, [safeRisk, selectedClusterId]);
 
   const clusterObs = useMemo(() => {
-    return observations.filter((o) => o.cluster_id === selectedClusterId);
-  }, [observations, selectedClusterId]);
+    return safeObs.filter((o) => o.cluster_id === selectedClusterId);
+  }, [safeObs, selectedClusterId]);
 
   const pipelineSteps = useMemo(() => {
     if (!selectedIncident) return [];
@@ -154,7 +157,7 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
 
       {/* 01 — Filter by Acquisition Date */}
       <section className="spacious-section" style={{ padding: '0 0 1.5rem 0' }}>
-        <div className="section-tag">FILTER BY ACQUISITION DATE ({availableDates.length - 1} DAYS IN HISTORICAL WINDOW)</div>
+        <div className="section-tag">FILTER BY ACQUISITION DATE ({availableDates.length > 1 ? availableDates.length - 1 : 0} DAYS IN HISTORICAL WINDOW)</div>
         <div className="timeline-date-nav" style={{ marginTop: '0.5rem' }}>
           {availableDates.map((d) => (
             <button
@@ -162,7 +165,7 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
               className={`timeline-date-btn ${selectedDate === d ? 'active' : ''}`}
               onClick={() => setSelectedDate(d)}
             >
-              {d === 'ALL' ? `All Dates (${availableDates.length - 1} Days)` : d}
+              {d === 'ALL' ? `All Dates (${availableDates.length > 1 ? availableDates.length - 1 : 0} Days)` : d}
             </button>
           ))}
         </div>
@@ -242,7 +245,7 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
               onChange={(e) => setSelectedClusterId(e.target.value)}
               style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}
             >
-              {riskData.map((c) => (
+              {safeRisk.map((c) => (
                 <option key={c.cluster_id} value={c.cluster_id}>
                   {c.cluster_id} &bull; Risk: {c.risk_score.toFixed(1)} [{c.risk_level}]
                 </option>

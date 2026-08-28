@@ -58,8 +58,8 @@ export const HistoricalDataPage = () => {
         apiService.getSummary()
       ]);
       setQualityReport(qualityRes);
-      setProvenanceList(provRes);
-      setDatasetRecords(dataRes);
+      setProvenanceList(Array.isArray(provRes) ? provRes : []);
+      setDatasetRecords(Array.isArray(dataRes) ? dataRes : []);
       setSummary(sumRes);
     } catch (err) {
       console.error('Failed to load historical dataset information:', err);
@@ -131,8 +131,11 @@ export const HistoricalDataPage = () => {
     }
   };
 
+  const safeRecords = Array.isArray(datasetRecords) ? datasetRecords : [];
+  const safeProvenance = Array.isArray(provenanceList) ? provenanceList : [];
+
   const filteredRecords = useMemo(() => {
-    return datasetRecords.filter((rec) => {
+    return safeRecords.filter((rec) => {
       const term = searchTerm.toLowerCase();
       const matchesSearch = 
         (rec.nearest_facility_name || '').toLowerCase().includes(term) ||
@@ -147,7 +150,7 @@ export const HistoricalDataPage = () => {
 
       return matchesSearch && matchesLabel;
     });
-  }, [datasetRecords, searchTerm, labelFilter]);
+  }, [safeRecords, searchTerm, labelFilter]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
   const paginatedRecords = useMemo(() => {
@@ -293,14 +296,14 @@ export const HistoricalDataPage = () => {
               </tr>
             </thead>
             <tbody>
-              {provenanceList.length === 0 ? (
+              {safeProvenance.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                     No verified ground-truth records registered yet. Observations remain UNLABELED until verified.
                   </td>
                 </tr>
               ) : (
-                provenanceList.map((item, idx) => (
+                safeProvenance.map((item, idx) => (
                   <tr key={idx}>
                     <td className="font-mono">{item.latitude?.toFixed(4)}°N, {item.longitude?.toFixed(4)}°E</td>
                     <td>
@@ -352,7 +355,7 @@ export const HistoricalDataPage = () => {
                 setCurrentPage(1);
               }}
             >
-              <option value="ALL">All Records ({datasetRecords.length})</option>
+              <option value="ALL">All Records ({safeRecords.length})</option>
               <option value="LABELED">Verified Only</option>
               <option value="UNLABELED">Unlabeled Only</option>
             </select>

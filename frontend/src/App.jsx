@@ -32,9 +32,6 @@ export const App = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Progressive Data Loading Optimization:
-  // 1. Fetch core telemetry first (<50ms) to unblock UI
-  // 2. Fetch large 3,970 OSM polygon layer in the background
   const loadDashboardData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
     else setIsLoading(true);
@@ -47,20 +44,24 @@ export const App = () => {
 
       // 2. Fetch critical telemetry first
       const [summaryRes, obsRes, clustersRes, riskRes] = await Promise.all([
-        apiService.getSummary(),
-        apiService.getObservations(),
-        apiService.getClusters(),
-        apiService.getRisk()
+        apiService.getSummary().catch(() => null),
+        apiService.getObservations().catch(() => []),
+        apiService.getClusters().catch(() => []),
+        apiService.getRisk().catch(() => [])
       ]);
 
+      const safeObs = Array.isArray(obsRes) ? obsRes : [];
+      const safeClusters = Array.isArray(clustersRes) ? clustersRes : [];
+      const safeRisk = Array.isArray(riskRes) ? riskRes : [];
+
       setSummary(summaryRes);
-      setObservations(obsRes);
-      setClusters(clustersRes);
-      setRiskData(riskRes);
+      setObservations(safeObs);
+      setClusters(safeClusters);
+      setRiskData(safeRisk);
       
       // Default selected incident
-      if (riskRes.length > 0 && !selectedIncident) {
-        setSelectedIncident(riskRes[0]);
+      if (safeRisk.length > 0 && !selectedIncident) {
+        setSelectedIncident(safeRisk[0]);
       }
 
       // Unblock initial screen rendering immediately
@@ -70,7 +71,9 @@ export const App = () => {
       // 3. Asynchronously load heavy OSM polygons in background without blocking UI
       apiService.getIndustrialPolygons()
         .then((polyRes) => {
-          setIndustrialPolygons(polyRes);
+          if (polyRes && polyRes.features) {
+            setIndustrialPolygons(polyRes);
+          }
         })
         .catch((err) => {
           console.warn('OSM industrial polygons background fetch failed:', err);
@@ -80,8 +83,11 @@ export const App = () => {
       console.error('Failed to load telemetry from backend:', err);
       setIsOnline(false);
       setErrorMessage(
-        'Telemetry API is currently unavailable. Ensure the FastAPI backend server is running and accessible.'
+        'Telemetry API backend is not connected. Deployed frontend is in standalone demonstration mode.'
       );
+      setObservations([]);
+      setClusters([]);
+      setRiskData([]);
       setIsLoading(false);
       setIsRefreshing(false);
     }

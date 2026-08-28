@@ -32,7 +32,11 @@ export const OverviewPage = ({
   onNavigateToMethodology,
   onNavigateToTimeline
 }) => {
-  const criticalIncident = riskData.length > 0 ? riskData[0] : null;
+  const safeRisk = Array.isArray(riskData) ? riskData : [];
+  const safeObs = Array.isArray(observations) ? observations : [];
+  const safeClusters = Array.isArray(clusters) ? clusters : [];
+
+  const criticalIncident = safeRisk.length > 0 ? safeRisk[0] : null;
   const [mlStatus, setMlStatus] = useState(null);
   const [qualityReport, setQualityReport] = useState(null);
 
@@ -48,10 +52,10 @@ export const OverviewPage = ({
 
   // Compute live counts from telemetry
   const liveStats = useMemo(() => {
-    const totalObs = summary?.total_observations ?? observations.length ?? 0;
-    const totalClust = summary?.total_clusters ?? clusters.length ?? 0;
-    const industrialCount = observations.filter((o) => (o.distance_to_industry_meters ?? 0) <= 1000).length;
-    const ruralCount = observations.filter((o) => (o.distance_to_industry_meters ?? 0) > 1000).length;
+    const totalObs = summary?.total_observations ?? safeObs.length ?? 0;
+    const totalClust = summary?.total_clusters ?? safeClusters.length ?? 0;
+    const industrialCount = safeObs.filter((o) => (o.distance_to_industry_meters ?? 0) <= 1000).length;
+    const ruralCount = safeObs.filter((o) => (o.distance_to_industry_meters ?? 0) > 1000).length;
     const verifiedCount = qualityReport?.labeled_observations ?? 0;
     const unlabeledCount = qualityReport?.unlabeled_observations ?? (totalObs - verifiedCount);
 
@@ -70,7 +74,7 @@ export const OverviewPage = ({
       unlabeledCount: unlabeledCount || totalObs,
       dateRangeStr
     };
-  }, [summary, observations, clusters, qualityReport]);
+  }, [summary, safeObs, safeClusters, qualityReport]);
 
   return (
     <div className="overview-page">
@@ -319,8 +323,8 @@ export const OverviewPage = ({
 
         <div className="gis-map-viewport" style={{ height: '520px', marginTop: '1.25rem' }}>
           <GISMapView
-            observations={observations}
-            clusters={clusters}
+            observations={safeObs}
+            clusters={safeClusters}
             industrialPolygons={industrialPolygons}
             selectedCluster={criticalIncident}
             onSelectCluster={(c) => onOpenIncidentDetail(c)}

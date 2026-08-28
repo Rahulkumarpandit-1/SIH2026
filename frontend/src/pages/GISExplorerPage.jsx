@@ -34,6 +34,10 @@ export const GISExplorerPage = ({
   industrialPolygons,
   onOpenIncidentDetail
 }) => {
+  const safeObs = Array.isArray(observations) ? observations : [];
+  const safeClusters = Array.isArray(clusters) ? clusters : [];
+  const safeRisk = Array.isArray(riskData) ? riskData : [];
+
   const [showHotspots, setShowHotspots] = useState(true);
   const [showClusters, setShowClusters] = useState(true);
   const [showPolygons, setShowPolygons] = useState(true);
@@ -43,31 +47,31 @@ export const GISExplorerPage = ({
   const [triggerFitAll, setTriggerFitAll] = useState(0);
 
   useEffect(() => {
-    if (riskData.length > 0 && !selectedCluster) {
-      setSelectedCluster(riskData[0]);
+    if (safeRisk.length > 0 && !selectedCluster) {
+      setSelectedCluster(safeRisk[0]);
     }
-  }, [riskData, selectedCluster]);
+  }, [safeRisk, selectedCluster]);
 
   const defaultCenter = [22.2587, 71.1924];
   const defaultZoom = 7;
 
   const filteredClusters = useMemo(() => {
-    return clusters.filter((item) => {
-      const riskMeta = riskData.find((r) => r.cluster_id === item.cluster_id);
+    return safeClusters.filter((item) => {
+      const riskMeta = safeRisk.find((r) => r.cluster_id === item.cluster_id);
       if (selectedRisk !== 'ALL' && riskMeta?.risk_level !== selectedRisk) return false;
       return true;
     });
-  }, [clusters, riskData, selectedRisk]);
+  }, [safeClusters, safeRisk, selectedRisk]);
 
   const filteredObservations = useMemo(() => {
-    return observations.filter((item) => {
+    return safeObs.filter((item) => {
       if (selectedRisk !== 'ALL' && item.risk_level !== selectedRisk) return false;
       return true;
     });
-  }, [observations, selectedRisk]);
+  }, [safeObs, selectedRisk]);
 
   const handleClusterClick = (clusterItem) => {
-    const fullRisk = riskData.find((r) => r.cluster_id === clusterItem.cluster_id) || clusterItem;
+    const fullRisk = safeRisk.find((r) => r.cluster_id === clusterItem.cluster_id) || clusterItem;
     setSelectedCluster(fullRisk);
     setTargetCoords([clusterItem.centroid_latitude, clusterItem.centroid_longitude]);
   };
@@ -198,7 +202,7 @@ export const GISExplorerPage = ({
 
             {/* Physical Cluster Centroids */}
             {showClusters && filteredClusters.map((cluster) => {
-              const riskMeta = riskData.find((r) => r.cluster_id === cluster.cluster_id);
+              const riskMeta = safeRisk.find((r) => r.cluster_id === cluster.cluster_id);
               const rLevel = riskMeta?.risk_level ?? 'LOW';
               const rScore = riskMeta?.risk_score ?? 0.0;
               const rColor = getRiskColor(rLevel);
