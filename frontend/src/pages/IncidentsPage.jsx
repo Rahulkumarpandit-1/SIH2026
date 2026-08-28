@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Search, ArrowUpDown, ShieldAlert, CheckCircle2, Radio, Info } from 'lucide-react';
 
 export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
   const [selectedRisk, setSelectedRisk] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
+  const [selectedStream, setSelectedStream] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('risk_score');
   const [sortAsc, setSortAsc] = useState(false);
@@ -68,12 +69,23 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
     <div className="incidents-page">
       {/* Page Header */}
       <div className="page-header-block" style={{ marginBottom: '2rem' }}>
-        <div className="section-tag">OPERATIONAL INVESTIGATION QUEUE &bull; SIH26162</div>
+        <div className="section-tag">NEAR-REAL-TIME INVESTIGATION QUEUE &bull; SIH26162</div>
         <h1 className="section-heading-lg">Prioritized Incident Queue</h1>
         <p className="section-subtext">
-          Live thermal cluster queue prioritized by deterministic multi-signal risk calculation. 
+          Satellite thermal clusters prioritized by deterministic multi-signal risk calculation. 
           Select any incident record to open the complete scientific intelligence investigation report.
         </p>
+      </div>
+
+      {/* Scientific Prioritization Notice */}
+      <div className="alert-callout-neutral" style={{ marginBottom: '1.5rem' }}>
+        <div className="callout-icon text-info"><Info size={20} /></div>
+        <div style={{ fontSize: '0.86rem', lineHeight: 1.55 }}>
+          <strong>Decision-Support Notice:</strong> Detections are categorized as 
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.35rem' }}>DETECTED</span> 
+          by orbital infrared sensors. High risk scores prioritize emergency drone/CCTV inspection and dispatch, 
+          not autonomous legal verification of a factory fire.
+        </div>
       </div>
 
       {/* Clean Toolbar */}
@@ -138,7 +150,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                 Persistence
               </th>
               <th>Action Code</th>
-              <th>Ground Truth</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -190,7 +202,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                       {item.action_code}
                     </td>
                     <td>
-                      <span className="pill-badge pill-neutral font-mono">UNLABELED</span>
+                      <span className="pill-badge pill-neutral font-mono">DETECTED</span>
                     </td>
                   </tr>
                 );

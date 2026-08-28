@@ -83,11 +83,8 @@ export const App = () => {
       console.error('Failed to load telemetry from backend:', err);
       setIsOnline(false);
       setErrorMessage(
-        'Telemetry API backend is not connected. Deployed frontend is in standalone demonstration mode.'
+        'Telemetry API backend is currently offline. Showing local telemetry state.'
       );
-      setObservations([]);
-      setClusters([]);
-      setRiskData([]);
       setIsLoading(false);
       setIsRefreshing(false);
     }
@@ -112,6 +109,7 @@ export const App = () => {
         currentView={currentView === 'incident-detail' ? 'incidents' : currentView}
         setCurrentView={setCurrentView}
         isOnline={isOnline}
+        isRefreshing={isRefreshing}
       />
 
       {/* API Failure Banner */}
@@ -132,7 +130,7 @@ export const App = () => {
       {isLoading ? (
         <div className="loading-state-screen">
           <Loader2 size={32} className="spin-anim text-muted" />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Connecting to Thermal Intelligence Stream...</h3>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Connecting to Near-Real-Time Thermal Stream...</h3>
           <p className="text-secondary" style={{ fontSize: '0.84rem' }}>
             Ingesting verified NASA FIRMS satellite observations and cluster telemetry
           </p>
@@ -173,6 +171,7 @@ export const App = () => {
                 setCurrentView('timeline');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
+              onRefreshData={() => loadDashboardData(true)}
             />
           )}
 

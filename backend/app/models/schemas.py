@@ -31,6 +31,7 @@ class RawObservationBase(BaseModel):
     bright_t31: Optional[float] = Field(default=None, description="Brightness temp channel 5 / Band 31 in Kelvin")
     frp: float = Field(default=0.0, ge=0.0, description="Fire Radiative Power in Megawatts (MW)")
     daynight: Literal["D", "N"] = Field(default="N", description="D=Day pass, N=Night pass")
+    stream_type: str = Field(default="historical", description="Stream categorization: 'historical' or 'near_real_time'")
 
     @field_validator("acq_time", mode="before")
     @classmethod
@@ -86,6 +87,8 @@ class RawObservationBase(BaseModel):
             values["track"] = 0.375
         if _is_null_or_nan(values.get("version")):
             values["version"] = "NRT"
+        if _is_null_or_nan(values.get("stream_type")):
+            values["stream_type"] = "historical"
 
         # Normalize confidence to both a categorical string and a 0.0-1.0 float
         conf_raw = str(values.get("confidence", "nominal")).strip().lower()
@@ -199,11 +202,12 @@ class MLStatusResponse(BaseModel):
 
 class DataRefreshRequest(BaseModel):
     """Data refresh request parameters."""
-    days: Optional[int] = Field(default=5, ge=1, le=30, description="Days to query")
+    days: Optional[int] = Field(default=1, ge=1, le=30, description="Days to query (default 1 for NRT)")
     sensor: Optional[str] = Field(default="VIIRS_SNPP_NRT", description="Sensor to query")
     bbox: Optional[List[float]] = Field(default=None, description="[min_lon, min_lat, max_lon, max_lat]")
     start_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
     end_date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
+    stream_type: Optional[str] = Field(default="near_real_time", description="'near_real_time' or 'historical'")
 
 
 class DataRefreshResponse(BaseModel):
@@ -216,3 +220,37 @@ class DataRefreshResponse(BaseModel):
     date_range: Dict[str, Optional[str]]
     sensor: str
     execution_time_seconds: float
+
+
+class DataRefreshStatusResponse(BaseModel):
+    """Near-real-time data refresh operational status schema."""
+    status: str = Field(..., description="IDLE | RUNNING | SUCCESS | FAILED")
+    job_id: Optional[str] = None
+    started_at: Optional[str] = None
+    last_success: Optional[str] = None
+    last_checked: Optional[str] = None
+    next_scheduled_refresh: Optional[str] = None
+    new_observations: int = 0
+    duplicates: int = 0
+    duration_seconds: float = 0.0
+    refresh_interval_minutes: int = 15
+    active_sensor: str = "VIIRS_SNPP_NRT"
+    error: Optional[str] = None
+
+
+class DashboardSummaryResponse(BaseModel):
+    """High-level KPI metrics summary schema."""
+    total_observations: int
+    total_clusters: int
+    critical_count: int
+    high_count: int
+    moderate_count: int
+    low_count: int
+    date_range: Optional[Dict[str, Optional[str]]] = None
+    latest_observation_date: Optional[str] = None
+    last_data_update: Optional[str] = None
+    last_refresh_time: Optional[str] = None
+    next_refresh_time: Optional[str] = None
+    live_observations_count: int = 0
+    historical_observations_count: int = 0
+    monitoring_mode: str = "NEAR_REAL_TIME"

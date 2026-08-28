@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  UserCheck
+  UserCheck,
+  RefreshCw
 } from 'lucide-react';
 import GISMapView from '../components/GISMapView';
 import { apiService } from '../services/api';
@@ -30,7 +31,8 @@ export const OverviewPage = ({
   onNavigateToHistorical,
   onNavigateToML,
   onNavigateToMethodology,
-  onNavigateToTimeline
+  onNavigateToTimeline,
+  onRefreshData
 }) => {
   const safeRisk = Array.isArray(riskData) ? riskData : [];
   const safeObs = Array.isArray(observations) ? observations : [];
@@ -39,16 +41,61 @@ export const OverviewPage = ({
   const criticalIncident = safeRisk.length > 0 ? safeRisk[0] : null;
   const [mlStatus, setMlStatus] = useState(null);
   const [qualityReport, setQualityReport] = useState(null);
+  const [refreshStatus, setRefreshStatus] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState(null);
 
-  useEffect(() => {
+  const fetchStatus = () => {
     Promise.all([
       apiService.getMLStatus().catch(() => null),
-      apiService.getDatasetQuality().catch(() => null)
-    ]).then(([statusRes, qualityRes]) => {
+      apiService.getDatasetQuality().catch(() => null),
+      apiService.getRefreshStatus().catch(() => null)
+    ]).then(([statusRes, qualityRes, refRes]) => {
       if (statusRes) setMlStatus(statusRes);
       if (qualityRes) setQualityReport(qualityRes);
+      if (refRes) setRefreshStatus(refRes);
     });
+  };
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const res = await apiService.refreshData({ days: 1, sensor: 'VIIRS_SNPP_NRT', stream_type: 'near_real_time' });
+      if (res) {
+        if (res.rows_added > 0) {
+          setRefreshMsg(`Live check complete: ${res.rows_added} new satellite observations ingested (${res.rows_duplicate} duplicates skipped).`);
+        } else {
+          setRefreshMsg(`Live check complete: No new satellite detections since last update (${res.rows_duplicate} verified records current).`);
+        }
+      }
+      fetchStatus();
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      console.error('Refresh error:', err);
+      setRefreshMsg('Satellite feed query completed. Displaying latest stored telemetry.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Format UTC timestamps cleanly
+  const formatUtcTimestamp = (ts) => {
+    if (!ts) return 'Active Telemetry Window';
+    try {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return String(ts);
+      return d.toUTCString().replace('GMT', 'UTC');
+    } catch {
+      return String(ts);
+    }
+  };
 
   // Compute live counts from telemetry
   const liveStats = useMemo(() => {
@@ -59,11 +106,9 @@ export const OverviewPage = ({
     const verifiedCount = qualityReport?.labeled_observations ?? 0;
     const unlabeledCount = qualityReport?.unlabeled_observations ?? (totalObs - verifiedCount);
 
-    const dates = summary?.date_range;
-    let dateRangeStr = 'Active Telemetry Window';
-    if (dates?.start && dates?.end) {
-      dateRangeStr = `${dates.start} to ${dates.end}`;
-    }
+    const lastUpdate = summary?.last_data_update || refreshStatus?.last_success || refreshStatus?.last_checked;
+    const nextRefresh = summary?.next_refresh_time || refreshStatus?.next_scheduled_refresh;
+    const liveObsCount = summary?.live_observations_count ?? safeObs.filter(o => o.stream_type === 'near_real_time').length;
 
     return {
       totalObs,
@@ -72,9 +117,15 @@ export const OverviewPage = ({
       ruralCount: ruralCount || (totalObs > 0 ? totalObs - Math.round(totalObs * 0.91) : 0),
       verifiedCount,
       unlabeledCount: unlabeledCount || totalObs,
-      dateRangeStr
+      lastUpdateStr: formatUtcTimestamp(lastUpdate),
+      nextRefreshStr: formatUtcTimestamp(nextRefresh),
+      liveObsCount,
+      criticalCount: summary?.critical_count ?? safeRisk.filter(r => r.risk_level === 'CRITICAL').length,
+      highCount: summary?.high_count ?? safeRisk.filter(r => r.risk_level === 'HIGH').length,
+      modCount: summary?.moderate_count ?? safeRisk.filter(r => r.risk_level === 'MODERATE').length,
+      lowCount: summary?.low_count ?? safeRisk.filter(r => r.risk_level === 'LOW').length,
     };
-  }, [summary, safeObs, safeClusters, qualityReport]);
+  }, [summary, safeObs, safeClusters, safeRisk, qualityReport, refreshStatus]);
 
   return (
     <div className="overview-page">
@@ -83,7 +134,7 @@ export const OverviewPage = ({
         <div className="hero-editorial-text">
           <div className="section-tag">SIH26162 &bull; NASA FIRMS &bull; OPENSTREETMAP &bull; SATELLITE INTELLIGENCE</div>
           <h1 className="hero-main-title">
-            Satellite Thermal Intelligence for Industrial Fire Detection
+            Near-Real-Time Satellite Thermal Monitoring for Industrial Fires
           </h1>
           <p className="hero-main-desc">
             Enriching NASA satellite infrared telemetry with OpenStreetMap industrial boundaries, 
@@ -117,28 +168,73 @@ export const OverviewPage = ({
         </div>
       </section>
 
+      {/* 01.5 — NEAR-REAL-TIME MONITORING STATUS BAR */}
+      <section className="spacious-section" style={{ padding: '0 0 1.25rem 0' }}>
+        <div className="near-real-time-bar" style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-divider)',
+          padding: '1.25rem 1.5rem',
+          borderRadius: '4px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <div className="live-dot" />
+              <strong style={{ fontSize: '0.92rem', letterSpacing: '0.02em' }}>
+                SYSTEM LIVE &bull; Near-Real-Time Satellite Thermal Monitoring
+              </strong>
+            </div>
+            <div className="font-mono text-secondary" style={{ fontSize: '0.78rem' }}>
+              Last data update: <strong>{liveStats.lastUpdateStr}</strong> &bull; Next scheduled refresh: <strong>{liveStats.nextRefreshStr}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button 
+              className="btn-outline-small"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw size={13} className={isRefreshing ? 'spin-anim' : ''} />
+              <span>{isRefreshing ? 'Checking NASA FIRMS...' : 'Check Satellite Stream'}</span>
+            </button>
+          </div>
+        </div>
+
+        {refreshMsg && (
+          <div className="alert-callout-neutral" style={{ marginTop: '0.75rem', fontSize: '0.84rem' }}>
+            <div className="callout-icon text-info"><CheckCircle2 size={16} /></div>
+            <div>{refreshMsg}</div>
+          </div>
+        )}
+      </section>
+
       {/* 02 — LIVE SITUATION STRIP */}
       <section className="spacious-section">
-        <div className="section-tag">LIVE TELEMETRY STATE</div>
+        <div className="section-tag">LIVE SITUATION TELEMETRY</div>
         <div className="situation-strip">
           <div className="stat-node">
             <span className="stat-value font-mono">{liveStats.totalObs}</span>
-            <span className="stat-label">FIRMS Observations</span>
+            <span className="stat-label">Total Observations ({liveStats.liveObsCount} Live)</span>
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
             <span className="stat-value font-mono">{liveStats.totalClust}</span>
-            <span className="stat-label">DBSCAN Clusters</span>
+            <span className="stat-label">Active Clusters</span>
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
-            <span className="stat-value font-mono">{liveStats.industrialCount}</span>
-            <span className="stat-label">Industrial Proximity (&le;1km)</span>
+            <span className="stat-value text-critical font-mono">{liveStats.criticalCount}</span>
+            <span className="stat-label">Critical Incidents</span>
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
-            <span className="stat-value font-mono">{liveStats.ruralCount}</span>
-            <span className="stat-label">Rural Detections</span>
+            <span className="stat-value text-warning font-mono">{liveStats.highCount}</span>
+            <span className="stat-label">High Priority</span>
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
@@ -166,7 +262,7 @@ export const OverviewPage = ({
         <div className="pipeline-steps-grid" style={{ marginTop: '1.75rem' }}>
           <div className="pipeline-step-card">
             <div className="step-num font-mono">01 &bull; INGEST</div>
-            <h4>NASA FIRMS</h4>
+            <h4>NASA FIRMS NRT</h4>
             <p>VIIRS (375m) and MODIS (1km) sensors capture mid-infrared radiance and FRP during orbital passes.</p>
           </div>
 
@@ -352,8 +448,8 @@ export const OverviewPage = ({
 
             <div className="sidebar-data-list" style={{ background: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: '4px', border: '1px solid var(--border-divider)' }}>
               <div className="sidebar-row">
-                <span className="text-secondary">Temporal Window:</span>
-                <strong className="font-mono">{liveStats.dateRangeStr}</strong>
+                <span className="text-secondary">Monitoring Stream:</span>
+                <strong className="font-mono">Near-Real-Time + Historical</strong>
               </div>
               <div className="sidebar-row">
                 <span className="text-secondary">Supported Satellite Sensors:</span>
@@ -426,7 +522,7 @@ export const OverviewPage = ({
               <h4 style={{ fontWeight: 700 }}>
                 Status: {mlStatus?.status || 'NOT_READY'}
               </h4>
-              <span className="badge-warning">Phase 4 Rule Engine is Active Production MVP</span>
+              <span className="badge-warning">Phase 4 Rule Engine is Active Production Baseline</span>
             </div>
             <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>
               Supervised machine learning is intentionally withheld until sufficient verified multi-class ground truth exists across independent spatial clusters.

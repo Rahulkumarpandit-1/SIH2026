@@ -24,6 +24,7 @@ class RawObservationModel(Base):
     bright_t31 = Column(Float, nullable=True)
     frp = Column(Float, nullable=False, default=0.0)
     daynight = Column(String(1), nullable=False, default="N")
+    stream_type = Column(String(20), default="historical", nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Composite indexes and natural key unique constraint to prevent duplicate observations
@@ -34,7 +35,8 @@ class RawObservationModel(Base):
         ),
         Index("idx_spatial_coords", "latitude", "longitude"),
         Index("idx_temporal_spatial", "acq_date", "latitude", "longitude"),
+        Index("idx_stream_type", "stream_type"),
     )
 
     def __repr__(self) -> str:
-        return f"<RawObservation(id={self.id}, lat={self.latitude}, lon={self.longitude}, date={self.acq_date}, frp={self.frp}MW)>"
+        return f"<RawObservation(id={self.id}, lat={self.latitude}, lon={self.longitude}, date={self.acq_date}, frp={self.frp}MW, stream={self.stream_type})>"

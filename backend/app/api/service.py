@@ -2,12 +2,14 @@ import os
 import json
 import uuid
 import time
+import threading
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
 import joblib
 
 from app.core.config import settings
@@ -30,28 +32,38 @@ from app.scoring.classifier import (
 )
 from app.dataset.ground_truth import GroundTruthRegistry, GroundTruthReviewRequest, TargetClass
 from app.dataset.builder import DatasetBuilder
-from app.models.schemas import MLPredictRequest, MLPredictResponse, DataRefreshRequest, DataRefreshResponse
+from app.models.schemas import (
+    MLPredictRequest, 
+    MLPredictResponse, 
+    DataRefreshRequest, 
+    DataRefreshResponse,
+    DataRefreshStatusResponse
+)
 
 
 class PipelineService:
     """
-    Service layer orchestrating the verified Phases 1-8 pipeline execution in memory.
+    Service layer orchestrating the verified near-real-time and historical pipeline execution in memory.
     Reads from the database with in-memory caching to achieve ultra-fast (<2ms) responses.
     """
     _cached_data: Optional[Dict[str, Any]] = None
     _cached_record_count: Optional[int] = None
     _cached_ml: Optional[Dict[str, Any]] = None
     _cached_quality_report: Optional[Dict[str, Any]] = None
-    _is_refreshing: bool = False
+
+    _refresh_lock = threading.Lock()
     _last_refresh_status: Dict[str, Any] = {
         "status": "IDLE",
         "job_id": None,
-        "start_time": None,
-        "end_time": None,
-        "sensor": None,
-        "rows_received": 0,
-        "rows_added": 0,
-        "rows_duplicate": 0,
+        "started_at": None,
+        "last_success": None,
+        "last_checked": None,
+        "next_scheduled_refresh": None,
+        "new_observations": 0,
+        "duplicates": 0,
+        "duration_seconds": 0.0,
+        "refresh_interval_minutes": settings.LIVE_REFRESH_INTERVAL_MINUTES,
+        "active_sensor": settings.DEFAULT_SENSOR,
         "error": None
     }
 
@@ -62,6 +74,16 @@ class PipelineService:
         cls._cached_record_count = None
         cls._cached_ml = None
         cls._cached_quality_report = None
+
+    @classmethod
+    def get_refresh_status(cls) -> Dict[str, Any]:
+        """Returns the current operational state of the near-real-time refresh job."""
+        # Calculate dynamic next refresh if missing
+        st = dict(cls._last_refresh_status)
+        if not st.get("next_scheduled_refresh"):
+            now = datetime.now(timezone.utc)
+            st["next_scheduled_refresh"] = (now + timedelta(minutes=settings.LIVE_REFRESH_INTERVAL_MINUTES)).isoformat()
+        return st
 
     @classmethod
     def get_analyzed_data(cls, db: Session, force_refresh: bool = False) -> Dict[str, Any]:
@@ -98,7 +120,8 @@ class PipelineService:
                 "confidence_normalized": obs.confidence_normalized,
                 "daynight": obs.daynight,
                 "satellite": obs.satellite,
-                "instrument": obs.instrument
+                "instrument": obs.instrument,
+                "stream_type": getattr(obs, "stream_type", "historical") or "historical"
             })
         df_obs = pd.DataFrame(data)
 
@@ -106,6 +129,10 @@ class PipelineService:
         builder = DatasetBuilder()
         builder.register_known_historical_ground_truth()
         enriched_df = builder.process_and_enrich_observations(df_obs)
+
+        # Ensure stream_type is preserved in enriched_df
+        if "stream_type" not in enriched_df.columns and "stream_type" in df_obs.columns:
+            enriched_df["stream_type"] = df_obs["stream_type"]
 
         # 2. Persistence Analysis on Cluster Summary
         persistence_engine = PersistenceEngine(persistence_threshold=0.5)
@@ -159,161 +186,129 @@ class PipelineService:
         """
         pipeline_data = cls.get_analyzed_data(db)
         obs_df = pipeline_data["observations_df"]
+
         if obs_df.empty:
             return []
 
         results = []
         for _, row in obs_df.iterrows():
+            label_val = row.get("label")
+            label_name = row.get("label_name")
+            if pd.isna(label_val) or label_name == "UNLABELED" or not label_name:
+                display_label = "UNLABELED"
+                display_code = -1
+            else:
+                display_label = str(label_name)
+                display_code = int(label_val)
+
             results.append({
                 "observation_id": int(row["id"]),
+                "cluster_id": str(row["cluster_id"]),
                 "latitude": round(float(row["latitude"]), 6),
                 "longitude": round(float(row["longitude"]), 6),
                 "acq_date": str(row["acq_date"]),
                 "acq_time": str(row["acq_time"]),
                 "frp": round(float(row["frp"]), 2),
                 "brightness": round(float(row["brightness"]), 2),
-                "bright_t31": round(float(row.get("bright_t31", row["brightness"] - 30.0)), 2),
-                "thermal_contrast": round(float(row.get("thermal_contrast", 30.0)), 2),
                 "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
-                "nearest_facility_name": str(row.get("nearest_facility_name", "Industrial Zone")),
-                "cluster_id": str(row.get("cluster_id", "CLUSTER_0")),
-                "persistence_ratio": round(float(row.get("persistence_ratio", 0.2)), 4),
-                "active_days_count": int(row.get("active_days_count", 1)),
-                "is_anomaly_spike": bool(row.get("is_anomaly_spike", False)),
-                "label": int(row["label"]) if pd.notnull(row.get("label")) else None,
-                "label_name": str(row.get("label_name", "UNLABELED")),
+                "nearest_facility_name": str(row["nearest_facility_name"]),
+                "spatial_context": str(row["spatial_context"]),
+                "label": display_code,
+                "label_name": display_label,
                 "label_source": str(row.get("label_source", "UNVERIFIED")),
-                "label_confidence": float(row["label_confidence"]) if pd.notnull(row.get("label_confidence")) else None,
-                "source_reference": str(row["source_reference"]) if pd.notnull(row.get("source_reference")) else None,
-                "reviewer": str(row["reviewer"]) if pd.notnull(row.get("reviewer")) else None,
-                "review_notes": str(row["review_notes"]) if pd.notnull(row.get("review_notes")) else None
+                "label_confidence": float(row.get("label_confidence", 0.0)) if not pd.isna(row.get("label_confidence")) else None,
+                "source_reference": str(row.get("source_reference", "")) if not pd.isna(row.get("source_reference")) else None,
+                "reviewer": str(row.get("reviewer", "")) if not pd.isna(row.get("reviewer")) else None,
+                "review_notes": str(row.get("review_notes", "")) if not pd.isna(row.get("review_notes")) else None,
+                "verified_at": str(row.get("verified_at", "")) if not pd.isna(row.get("verified_at")) else None,
+                "stream_type": str(row.get("stream_type", "historical"))
             })
+
         return results
 
     @classmethod
-    def get_observation_by_id(cls, observation_id: int, db: Session) -> Optional[Dict[str, Any]]:
+    def submit_ground_truth_review(
+        cls,
+        req: GroundTruthReviewRequest,
+        db: Session
+    ) -> Dict[str, Any]:
         """
-        Returns full contextual telemetry and review provenance for a single observation ID.
+        Records a verified human ground-truth review for a specific satellite observation.
         """
-        pipeline_data = cls.get_analyzed_data(db)
-        obs_df = pipeline_data["observations_df"]
-        if obs_df.empty:
-            return None
+        obs = db.query(RawObservationModel).filter(RawObservationModel.id == req.observation_id).first()
+        if not obs:
+            raise ValueError(f"Observation ID #{req.observation_id} not found in database.")
 
-        match = obs_df[obs_df["id"] == observation_id]
-        if match.empty:
-            return None
-
-        row = match.iloc[0]
-        return {
-            "observation_id": int(row["id"]),
-            "latitude": round(float(row["latitude"]), 6),
-            "longitude": round(float(row["longitude"]), 6),
-            "acq_date": str(row["acq_date"]),
-            "acq_time": str(row["acq_time"]),
-            "satellite": str(row.get("satellite", "N")),
-            "instrument": str(row.get("instrument", "VIIRS")),
-            "confidence": str(row.get("confidence", "nominal")),
-            "confidence_normalized": round(float(row.get("confidence_normalized", 0.8)), 2),
-            "frp": round(float(row["frp"]), 2),
-            "brightness": round(float(row["brightness"]), 2),
-            "bright_t31": round(float(row.get("bright_t31", row["brightness"] - 30.0)), 2),
-            "thermal_contrast": round(float(row.get("thermal_contrast", 30.0)), 2),
-            "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
-            "nearest_facility_name": str(row.get("nearest_facility_name", "Industrial Zone")),
-            "nearest_facility_type": str(row.get("nearest_facility_type", "industrial")),
-            "spatial_context": str(row.get("spatial_context", "INSIDE_INDUSTRIAL_ZONE")),
-            "cluster_id": str(row.get("cluster_id", "CLUSTER_0")),
-            "persistence_ratio": round(float(row.get("persistence_ratio", 0.2)), 4),
-            "active_days_count": int(row.get("active_days_count", 1)),
-            "is_anomaly_spike": bool(row.get("is_anomaly_spike", False)),
-            "risk_score": round(float(row.get("risk_score", 0.0)), 2),
-            "risk_level": str(row.get("risk_level", "LOW")),
-            "action_code": str(row.get("action_code", "BACKGROUND_LOG")),
-            "incident_classification": str(row.get("incident_classification", "NON_INDUSTRIAL_RURAL")),
-            "label": int(row["label"]) if pd.notnull(row.get("label")) else None,
-            "label_name": str(row.get("label_name", "UNLABELED")),
-            "label_source": str(row.get("label_source", "UNVERIFIED")),
-            "label_confidence": float(row["label_confidence"]) if pd.notnull(row.get("label_confidence")) else None,
-            "source_reference": str(row["source_reference"]) if pd.notnull(row.get("source_reference")) else None,
-            "reviewer": str(row["reviewer"]) if pd.notnull(row.get("reviewer")) else None,
-            "review_notes": str(row["review_notes"]) if pd.notnull(row.get("review_notes")) else None
-        }
-
-    @classmethod
-    def submit_ground_truth_review(cls, review_req: GroundTruthReviewRequest, db: Session) -> Dict[str, Any]:
-        """
-        Adds human verified review annotation, saves to disk, and invalidates in-memory caches.
-        """
-        registry = GroundTruthRegistry()
-        prov = registry.add_human_review(review_req)
-        
-        # Invalidate pipeline cache to reflect updated labels
-        cls.invalidate_cache()
-
-        # Update dataset export splits in data/ml/
-        pipeline_data = cls.get_analyzed_data(db, force_refresh=True)
-        obs_df = pipeline_data["observations_df"]
         builder = DatasetBuilder()
-        builder.split_and_save_datasets(obs_df)
+        builder.register_known_historical_ground_truth()
 
-        labeled_df = obs_df[obs_df["label"].notnull()]
-        builder.export_ml_splits(labeled_df)
+        target_class_enum = TargetClass[req.target_class] if req.target_class in TargetClass.__members__ else TargetClass.UNLABELED
+
+        prov = builder.registry.register_verified_incident(
+            latitude=obs.latitude,
+            longitude=obs.longitude,
+            target_class=target_class_enum,
+            source_citation=req.source_citation,
+            reviewer=req.reviewer,
+            radius_meters=375.0,
+            date_str=str(obs.acq_date),
+            confidence=req.confidence,
+            review_notes=req.review_notes
+        )
+
+        cls.invalidate_cache()
+        cls.get_analyzed_data(db, force_refresh=True)
 
         return {
-            "status": "SUCCESS",
-            "message": f"Review recorded for ({review_req.latitude:.4f}, {review_req.longitude:.4f}) on {review_req.acq_date}",
-            "provenance": prov.model_dump()
+            "status": "RECORDED",
+            "observation_id": req.observation_id,
+            "target_class": prov.label_name,
+            "label_code": prov.label,
+            "reviewer": prov.reviewer,
+            "source_citation": prov.source_reference,
+            "verified_at": prov.verified_at,
+            "message": f"Ground-truth classification '{prov.label_name}' successfully committed to provenance registry."
         }
 
     @classmethod
     def get_ground_truth_quality(cls, db: Session) -> Dict[str, Any]:
-        """
-        Returns ground truth quality and class distribution statistics.
-        """
-        registry = GroundTruthRegistry()
-        registry_stats = registry.get_ground_truth_quality()
-
+        """Returns the data quality metrics from the ground truth registry."""
         pipeline_data = cls.get_analyzed_data(db)
         obs_df = pipeline_data["observations_df"]
-        
-        total_obs = len(obs_df) if not obs_df.empty else 0
-        labeled_obs = int(obs_df["label"].notnull().sum()) if not obs_df.empty else 0
-        unlabeled_obs = total_obs - labeled_obs
-
-        return {
-            **registry_stats,
-            "total_observations_in_db": total_obs,
-            "active_labeled_count": labeled_obs,
-            "active_unlabeled_count": unlabeled_obs,
-            "labeled_fraction": round(labeled_obs / total_obs, 4) if total_obs > 0 else 0.0
-        }
+        builder = DatasetBuilder()
+        return builder.generate_quality_report(obs_df, obs_df, duplicates_dropped=0)
 
     @classmethod
     def get_ml_status(cls, db: Session) -> Dict[str, Any]:
-        """
-        Evaluates empirical ML readiness and returns honest status without fabricating accuracy.
-        """
+        """Returns honest ML readiness assessment based on statistical sufficiency."""
         pipeline_data = cls.get_analyzed_data(db)
         obs_df = pipeline_data["observations_df"]
 
-        labeled_df = obs_df[obs_df["label"].notnull()] if not obs_df.empty and "label" in obs_df.columns else pd.DataFrame()
-        return MLReadinessEvaluator.evaluate(labeled_df)
+        evaluator = MLReadinessEvaluator()
+        report = evaluator.evaluate(obs_df)
+
+        return {
+            "status": report.get("status", "NOT_READY"),
+            "reason": report.get("reason", "Insufficient data"),
+            "labeled_samples": report.get("labeled_samples", 0),
+            "classes_present": report.get("classes_present", 0),
+            "class_distribution": report.get("class_distribution", {}),
+            "spatial_groups_count": report.get("spatial_groups_count", 0),
+            "min_samples_per_class": report.get("min_samples_per_class", 0),
+            "is_statistically_defensible": report.get("is_statistically_defensible", False),
+            "recommendation": report.get("recommendation", "Use Rule Engine.")
+        }
 
     @classmethod
     def predict_ml(cls, req: MLPredictRequest, db: Session) -> MLPredictResponse:
         """
-        Performs 9D ML inference if valid trained model exists.
-        If ML readiness is NOT_READY, returns honest fallback response.
+        Executes ML inference for a 9D feature vector with strict honest disclosures.
         """
-        ml_status_info = cls.get_ml_status(db)
         features_dict = {
             "frp": req.frp,
             "brightness": req.brightness,
-            "bright_t31": req.bright_t31 if req.bright_t31 is not None else req.brightness - 30.0,
-            "thermal_contrast": req.thermal_contrast if req.thermal_contrast is not None else (
-                req.brightness - (req.bright_t31 if req.bright_t31 is not None else req.brightness - 30.0)
-            ),
+            "bright_t31": req.bright_t31 if req.bright_t31 is not None else req.brightness - (req.thermal_contrast or 5.0),
+            "thermal_contrast": req.thermal_contrast if req.thermal_contrast is not None else 5.0,
             "distance_to_industry_meters": req.distance_to_industry_meters,
             "persistence_ratio": req.persistence_ratio,
             "active_days_count": req.active_days_count,
@@ -321,39 +316,25 @@ class PipelineService:
             "confidence_normalized": req.confidence_normalized
         }
 
-        # Check for persisted model
-        models_dir = Path(__file__).resolve().parent.parent.parent / "models"
-        model_path = models_dir / "model.joblib"
-        manifest_path = models_dir / "training_manifest.json"
-        
-        is_trained_model = False
-        if model_path.exists() and manifest_path.exists():
-            try:
-                manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if manifest_data.get("training_status") == "SUCCESS":
-                    is_trained_model = True
-            except Exception:
-                is_trained_model = False
+        model_path = Path(settings.BASE_DIR) / "models" / "thermal_classifier.joblib"
+        if not model_path.exists():
+            model_path = Path(settings.BASE_DIR).parent / "models" / "thermal_classifier.joblib"
 
-        if not is_trained_model or ml_status_info.get("status") == MLReadinessStatus.NOT_READY.value:
+        if not model_path.exists():
             return MLPredictResponse(
                 ml_status="NOT_READY",
                 prediction_available=False,
-                predicted_class=None,
-                predicted_class_name=None,
-                class_probabilities=None,
-                model_type=None,
                 scientific_warning=(
-                    "Supervised machine learning is currently NOT statistically defensible due to insufficient "
-                    "verified multi-class ground truth. Predictions are withheld in adherence to scientific integrity. "
-                    "The Phase 4 Transparent Rule Engine remains the primary operational system."
+                    "Supervised ML model is not loaded (Status: NOT_READY). "
+                    "In adherence to scientific integrity, supervised training requires sufficient "
+                    "verified multi-class ground truth. Primary operational classification is provided "
+                    "by the Phase 4 Deterministic Rule Engine."
                 ),
                 features_used=features_dict
             )
 
         try:
             model = joblib.load(model_path)
-
             feat_vec = np.array([[
                 features_dict["frp"],
                 features_dict["brightness"],
@@ -399,75 +380,136 @@ class PipelineService:
     @classmethod
     def refresh_firms_data(cls, req: DataRefreshRequest, db: Session) -> DataRefreshResponse:
         """
-        Executes real FIRMS data refresh, deduplicates against database,
-        commits new records, invalidates caches, and returns ingestion statistics.
+        Thread-safe execution of NASA FIRMS near-real-time or historical data refresh.
+        Guarantees single execution lock, deduplicates against database, commits new records,
+        invalidates caches, and records full operational metrics.
         """
+        # 1. Enforce thread-safe job locking
+        acquired = cls._refresh_lock.acquire(blocking=False)
+        if not acquired:
+            logger.warning("Attempted to initiate FIRMS refresh while another refresh job is already active.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A NASA FIRMS refresh job is already currently running. Please wait for completion."
+            )
+
         start_time = time.time()
         job_id = f"job_refresh_{uuid.uuid4().hex[:8]}"
-        ingester = HistoricalFIRMSIngester()
+        now_utc = datetime.now(timezone.utc)
+        
+        # Update status to RUNNING
+        cls._last_refresh_status["status"] = "RUNNING"
+        cls._last_refresh_status["job_id"] = job_id
+        cls._last_refresh_status["started_at"] = now_utc.isoformat()
+        cls._last_refresh_status["active_sensor"] = req.sensor or settings.DEFAULT_SENSOR
+        cls._last_refresh_status["error"] = None
 
-        logger.info(f"Initiating FIRMS data refresh: sensor={req.sensor}, days={req.days}, date_range={req.start_date}..{req.end_date}")
-
-        if req.start_date and req.end_date:
-            df_raw, meta_list = ingester.fetch_historical_chunks(
-                start_date=req.start_date,
-                end_date=req.end_date,
-                bbox=req.bbox or settings.default_bbox,
-                sensor=req.sensor
-            )
-        else:
-            df_raw, meta = ingester.fetch_and_archive_area(
-                bbox=req.bbox or settings.default_bbox,
-                sensor=req.sensor,
-                day_range=req.days,
-                save_raw=True
+        try:
+            ingester = HistoricalFIRMSIngester()
+            logger.info(
+                f"Executing FIRMS data refresh: sensor={req.sensor}, days={req.days}, date_range={req.start_date}..{req.end_date}, stream={req.stream_type}"
             )
 
-        if df_raw.empty:
+            if req.start_date and req.end_date:
+                df_raw, meta_list = ingester.fetch_historical_chunks(
+                    start_date=req.start_date,
+                    end_date=req.end_date,
+                    bbox=req.bbox or settings.default_bbox,
+                    sensor=req.sensor
+                )
+            else:
+                df_raw, meta = ingester.fetch_and_archive_area(
+                    bbox=req.bbox or settings.default_bbox,
+                    sensor=req.sensor,
+                    day_range=req.days or settings.DEFAULT_DAY_RANGE,
+                    save_raw=True
+                )
+
+            exec_duration = round(time.time() - start_time, 3)
+            now_finished = datetime.now(timezone.utc)
+            next_refresh = now_finished + timedelta(minutes=settings.LIVE_REFRESH_INTERVAL_MINUTES)
+
+            if df_raw.empty:
+                logger.info(f"NASA FIRMS returned 0 observations for area query (duration={exec_duration}s).")
+                cls._last_refresh_status.update({
+                    "status": "IDLE",
+                    "last_checked": now_finished.isoformat(),
+                    "next_scheduled_refresh": next_refresh.isoformat(),
+                    "new_observations": 0,
+                    "duplicates": 0,
+                    "duration_seconds": exec_duration,
+                    "error": None
+                })
+                return DataRefreshResponse(
+                    job_id=job_id,
+                    status="SUCCESS_NO_NEW_DATA",
+                    rows_received=0,
+                    rows_added=0,
+                    rows_duplicate=0,
+                    date_range={"start": None, "end": None},
+                    sensor=req.sensor or settings.DEFAULT_SENSOR,
+                    execution_time_seconds=exec_duration
+                )
+
+            # Ingest and save to DB
+            from app.ingestion.firms_client import FIRMSClient
+            client = FIRMSClient()
+            summary, new_models = client.ingest_and_save(
+                db=db,
+                df=df_raw,
+                source_name="NASA_FIRMS_NRT_STREAM" if req.stream_type == "near_real_time" else "NASA_FIRMS_HISTORICAL_EXPANSION",
+                sensor_name=req.sensor or settings.DEFAULT_SENSOR,
+                stream_type=req.stream_type or "near_real_time"
+            )
+
+            # Invalidate in-memory caches
+            cls.invalidate_cache()
+
+            # Recompute pipeline data to warm cache
+            pipeline_data = cls.get_analyzed_data(db, force_refresh=True)
+            obs_df = pipeline_data["observations_df"]
+            
+            # Update dataset exports
+            builder = DatasetBuilder()
+            builder.split_and_save_datasets(obs_df)
+
+            dates = sorted(df_raw["acq_date"].astype(str).unique().tolist()) if "acq_date" in df_raw.columns else []
+
+            cls._last_refresh_status.update({
+                "status": "SUCCESS",
+                "last_success": now_finished.isoformat(),
+                "last_checked": now_finished.isoformat(),
+                "next_scheduled_refresh": next_refresh.isoformat(),
+                "new_observations": summary.valid_records,
+                "duplicates": summary.duplicates_skipped,
+                "duration_seconds": exec_duration,
+                "error": None
+            })
+
             return DataRefreshResponse(
                 job_id=job_id,
-                status="EMPTY_RESPONSE_OR_ERROR",
-                rows_received=0,
-                rows_added=0,
-                rows_duplicate=0,
-                date_range={"start": None, "end": None},
-                sensor=req.sensor,
-                execution_time_seconds=round(time.time() - start_time, 3)
+                status="SUCCESS",
+                rows_received=summary.total_received,
+                rows_added=summary.valid_records,
+                rows_duplicate=summary.duplicates_skipped,
+                date_range={"start": dates[0] if dates else None, "end": dates[-1] if dates else None},
+                sensor=req.sensor or settings.DEFAULT_SENSOR,
+                execution_time_seconds=exec_duration
             )
 
-        # Ingest and save to DB
-        from app.ingestion.firms_client import FIRMSClient
-        client = FIRMSClient()
-        summary, new_models = client.ingest_and_save(
-            db=db,
-            df=df_raw,
-            source_name="NASA_FIRMS_HISTORICAL_EXPANSION",
-            sensor_name=req.sensor
-        )
+        except Exception as e:
+            exec_duration = round(time.time() - start_time, 3)
+            logger.error(f"Error during FIRMS refresh execution: {e}", exc_info=True)
+            cls._last_refresh_status.update({
+                "status": "FAILED",
+                "last_checked": datetime.now(timezone.utc).isoformat(),
+                "duration_seconds": exec_duration,
+                "error": str(e)[:200]
+            })
+            raise
 
-        # Invalidate in-memory caches
-        cls.invalidate_cache()
-
-        # Update dataset export
-        pipeline_data = cls.get_analyzed_data(db, force_refresh=True)
-        obs_df = pipeline_data["observations_df"]
-        builder = DatasetBuilder()
-        builder.split_and_save_datasets(obs_df)
-        labeled_df = obs_df[obs_df["label"].notnull()]
-        builder.export_ml_splits(labeled_df)
-
-        dates = sorted(df_raw["acq_date"].astype(str).unique().tolist()) if "acq_date" in df_raw.columns else []
-
-        return DataRefreshResponse(
-            job_id=job_id,
-            status="SUCCESS",
-            rows_received=summary.total_received,
-            rows_added=summary.valid_records,
-            rows_duplicate=summary.duplicates_skipped,
-            date_range={"start": dates[0] if dates else None, "end": dates[-1] if dates else None},
-            sensor=req.sensor,
-            execution_time_seconds=round(time.time() - start_time, 3)
-        )
+        finally:
+            cls._refresh_lock.release()
 
     @classmethod
     def get_ml_evaluation(cls, db: Session, force_refresh: bool = False) -> Dict[str, Any]:
@@ -497,7 +539,6 @@ class PipelineService:
         extractor = ThermalFeatureExtractor()
         X, feature_names = extractor.extract_features_from_dataframe(obs_df)
 
-        # Baseline benchmark target: 1 if high hazard (risk >= 60.0), 0 otherwise
         y = (obs_df["risk_score"] >= 60.0).astype(int).values
 
         classifier = ThermalClassifier(n_estimators=50, random_state=42)
@@ -507,7 +548,6 @@ class PipelineService:
         groups = obs_df["cluster_id"].values
         cv_results = classifier.evaluate_spatial_cv(X, y, groups=groups, n_splits=3)
 
-        # Count verified ground truth labels
         labeled_count = int(obs_df["label"].notnull().sum())
         total_count = len(obs_df)
         is_statistically_valid = labeled_count >= 50

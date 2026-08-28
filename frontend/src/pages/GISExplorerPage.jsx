@@ -4,7 +4,7 @@ import {
   Tooltip, useMap 
 } from 'react-leaflet';
 import L from 'leaflet';
-import { Eye, Layers, RotateCcw, ArrowRight, MapPin, Radio, Activity } from 'lucide-react';
+import { Eye, Layers, RotateCcw, ArrowRight, MapPin, Radio, Activity, Clock } from 'lucide-react';
 
 const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [] }) => {
   const map = useMap();
@@ -45,6 +45,19 @@ export const GISExplorerPage = ({
   const [selectedCluster, setSelectedCluster] = useState(null);
   const [targetCoords, setTargetCoords] = useState(null);
   const [triggerFitAll, setTriggerFitAll] = useState(0);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsAgo((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Reset seconds ago when observations change
+  useEffect(() => {
+    setSecondsAgo(0);
+  }, [observations.length]);
 
   useEffect(() => {
     if (safeRisk.length > 0 && !selectedCluster) {
@@ -94,9 +107,13 @@ export const GISExplorerPage = ({
           <h1 className="section-heading-lg" style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>
             GIS Explorer &bull; Gujarat Industrial Corridor
           </h1>
-          <p className="text-secondary" style={{ fontSize: '0.84rem' }}>
-            Interactive multi-layer geospatial analysis with NASA satellite pixels, DBSCAN centroids, and 3,970 OSM boundary polygons.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <span>Interactive geospatial analysis with NASA satellite pixels, DBSCAN centroids, and 3,970 OSM boundary polygons.</span>
+            <span className="font-mono text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
+              <Clock size={12} />
+              <span>Telemetry updated {secondsAgo < 5 ? 'just now' : `${secondsAgo}s ago`}</span>
+            </span>
+          </div>
         </div>
 
         <div className="filter-button-group">
@@ -193,7 +210,8 @@ export const GISExplorerPage = ({
                   <Tooltip sticky>
                     <div style={{ fontSize: '0.78rem', lineHeight: 1.4 }}>
                       <strong>Observation #{obs.observation_id}</strong> &bull; {obs.frp} MW<br />
-                      Cluster: {obs.cluster_id} &bull; {obs.acq_date}
+                      Cluster: {obs.cluster_id} &bull; {obs.acq_date}<br />
+                      Stream: {obs.stream_type || 'historical'}
                     </div>
                   </Tooltip>
                 </CircleMarker>
@@ -320,8 +338,8 @@ export const GISExplorerPage = ({
                 </div>
 
                 <div className="sidebar-row">
-                  <span className="text-muted">Ground Truth:</span>
-                  <span className="pill-badge pill-neutral font-mono">UNLABELED</span>
+                  <span className="text-muted">Detection Status:</span>
+                  <span className="pill-badge pill-neutral font-mono">DETECTED</span>
                 </div>
               </div>
 

@@ -16,7 +16,7 @@ from app.ingestion.validator import ObservationValidator
 class FIRMSClient:
     """
     Client for interacting with the NASA FIRMS (Fire Information for Resource Management System) API.
-    Supports real-time ingestion, area queries, country queries, local file parsing, and DB persistence.
+    Supports near-real-time ingestion, area queries, country queries, local file parsing, and DB persistence.
     """
 
     def __init__(self, map_key: Optional[str] = None, base_url: Optional[str] = None):
@@ -109,8 +109,9 @@ class FIRMSClient:
         self,
         db: Session,
         df: pd.DataFrame,
-        source_name: str = "NASA_FIRMS_API",
-        sensor_name: str = "VIIRS"
+        source_name: str = "NASA_FIRMS_NRT_STREAM",
+        sensor_name: str = "VIIRS",
+        stream_type: str = "near_real_time"
     ) -> Tuple[IngestionSummary, List[RawObservationModel]]:
         """
         Validates DataFrame records, deduplicates against existing records in DB,
@@ -180,7 +181,8 @@ class FIRMSClient:
                 version=vm.version,
                 bright_t31=vm.bright_t31,
                 frp=vm.frp,
-                daynight=vm.daynight
+                daynight=vm.daynight,
+                stream_type=stream_type
             )
             db_records.append(db_record)
 
@@ -188,7 +190,7 @@ class FIRMSClient:
             try:
                 db.add_all(db_records)
                 db.commit()
-                logger.info(f"Successfully committed {len(db_records)} new records to database ({duplicates_skipped} duplicates skipped).")
+                logger.info(f"Successfully committed {len(db_records)} new records to database ({duplicates_skipped} duplicates skipped, stream={stream_type}).")
             except Exception as e:
                 db.rollback()
                 logger.error(f"Database error during batch insert: {str(e)}")

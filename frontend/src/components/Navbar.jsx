@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, RefreshCw } from 'lucide-react';
 
 export const Navbar = ({ 
   currentView, 
   setCurrentView, 
-  isOnline 
+  isOnline,
+  isRefreshing = false
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -30,7 +31,7 @@ export const Navbar = ({
         {/* Brand Left */}
         <div className="nav-brand-block" onClick={() => handleNavClick('overview')}>
           <span className="nav-brand-title">SIH26162</span>
-          <span className="nav-brand-sub">Thermal Intelligence</span>
+          <span className="nav-brand-sub">Near-Real-Time Thermal Monitoring</span>
         </div>
 
         {/* Text Navigation Links */}
@@ -48,8 +49,17 @@ export const Navbar = ({
 
         {/* Status Indicator */}
         <div className="nav-status-indicator">
-          <div className={`live-dot ${isOnline ? '' : 'offline'}`} />
-          <span>{isOnline ? 'SYSTEM LIVE' : 'API OFFLINE'}</span>
+          {isRefreshing ? (
+            <>
+              <RefreshCw size={12} className="spin-anim text-warning" />
+              <span className="text-warning">INGESTING FIRMS...</span>
+            </>
+          ) : (
+            <>
+              <div className={`live-dot ${isOnline ? '' : 'offline'}`} />
+              <span>{isOnline ? 'SYSTEM LIVE' : 'API OFFLINE'}</span>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}

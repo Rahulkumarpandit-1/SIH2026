@@ -24,14 +24,26 @@ def _resolve_default_db_url() -> str:
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables and .env file."""
     
+    BASE_DIR: Path = Field(default=BASE_DIR, description="Root directory of backend application")
+
     # NASA FIRMS settings
-    FIRMS_MAP_KEY: str = Field(default="demo_key_or_offline", description="NASA FIRMS MAPKEY")
+    FIRMS_MAP_KEY: str = Field(default="51ca9bc710f3add041124d86ddbb631d", description="NASA FIRMS MAPKEY")
     FIRMS_BASE_URL: str = "https://firms.modaps.eosdis.nasa.gov/api"
     
     # Available satellite sensors in FIRMS
     DEFAULT_SENSOR: str = "VIIRS_SNPP_NRT"
-    DEFAULT_DAY_RANGE: int = 3  # 1 to 10 days for NRT
+    DEFAULT_DAY_RANGE: int = 1  # 1 to 10 days for NRT live monitoring
     
+    # Near-Real-Time Automated Refresh Configuration
+    LIVE_REFRESH_INTERVAL_MINUTES: int = Field(
+        default=15, 
+        description="Configurable polling interval in minutes for background near-real-time FIRMS ingestion"
+    )
+    ENABLE_BACKGROUND_SCHEDULER: bool = Field(
+        default=True, 
+        description="Controls whether the background recurring scheduler runs in production"
+    )
+
     # Default Region of Interest: [min_lon, min_lat, max_lon, max_lat]
     # Complete Gujarat Industrial Corridor (Jamnagar, Dahej, Hazira/Surat, Vadodara, Vapi)
     DEFAULT_BBOX_MIN_LON: float = 69.0

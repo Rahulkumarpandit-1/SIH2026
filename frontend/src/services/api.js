@@ -44,8 +44,9 @@ export const apiService = {
     return ensureObject(response.data);
   },
 
-  getObservations: async () => {
-    const response = await apiClient.get('/api/observations');
+  getObservations: async (streamType = 'all') => {
+    const params = streamType && streamType !== 'all' ? { stream_type: streamType } : {};
+    const response = await apiClient.get('/api/observations', { params });
     return ensureArray(response.data);
   },
 
@@ -117,6 +118,11 @@ export const apiService = {
   refreshData: async (payload = {}) => {
     const response = await apiClient.post('/api/data/refresh', payload);
     return response.data;
+  },
+
+  getRefreshStatus: async () => {
+    const response = await apiClient.get('/api/data/refresh/status');
+    return ensureObject(response.data);
   },
 };
 

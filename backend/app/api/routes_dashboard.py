@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.service import PipelineService
@@ -10,7 +11,9 @@ from app.models.schemas import (
     MLPredictResponse,
     MLStatusResponse,
     DataRefreshRequest,
-    DataRefreshResponse
+    DataRefreshResponse,
+    DataRefreshStatusResponse,
+    DashboardSummaryResponse
 )
 
 router = APIRouter(prefix="/api", tags=["Dashboard & Telemetry"])
@@ -22,18 +25,21 @@ def get_health() -> Dict[str, Any]:
     return {
         "status": "healthy",
         "service": "SIH26162 Thermal Fire Intelligence API",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "monitoring_mode": "NEAR_REAL_TIME"
     }
 
 
-@router.get("/summary", summary="Dashboard Statistics Summary")
+@router.get("/summary", summary="Dashboard Statistics Summary", response_model=DashboardSummaryResponse)
 def get_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Returns high-level KPI metrics computed from the analyzed observation database.
+    Returns high-level KPI metrics computed from the analyzed observation database
+    including near-real-time refresh timestamps and stream breakdown.
     """
     pipeline_data = PipelineService.get_analyzed_data(db)
     obs_df = pipeline_data["observations_df"]
     clusters_df = pipeline_data["clusters_df"]
+    refresh_status = PipelineService.get_refresh_status()
 
     if obs_df.empty or clusters_df.empty:
         return {
@@ -44,7 +50,13 @@ def get_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
             "moderate_count": 0,
             "low_count": 0,
             "date_range": None,
-            "latest_observation_date": None
+            "latest_observation_date": None,
+            "last_data_update": refresh_status.get("last_success") or refresh_status.get("last_checked"),
+            "last_refresh_time": refresh_status.get("last_checked"),
+            "next_refresh_time": refresh_status.get("next_scheduled_refresh"),
+            "live_observations_count": 0,
+            "historical_observations_count": 0,
+            "monitoring_mode": "NEAR_REAL_TIME"
         }
 
     # Count risk levels among distinct physical clusters
@@ -52,9 +64,19 @@ def get_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
     dates = sorted(obs_df["acq_date"].unique().tolist())
     date_range = {
-        "start": dates[0] if dates else None,
-        "end": dates[-1] if dates else None
+        "start": str(dates[0]) if dates else None,
+        "end": str(dates[-1]) if dates else None
     }
+
+    # Stream breakdown
+    if "stream_type" in obs_df.columns:
+        live_count = int((obs_df["stream_type"] == "near_real_time").sum())
+    else:
+        live_count = 0
+    hist_count = int(len(obs_df) - live_count)
+
+    latest_date_str = str(dates[-1]) if dates else None
+    last_update_ts = refresh_status.get("last_success") or refresh_status.get("last_checked") or latest_date_str
 
     return {
         "total_observations": int(len(obs_df)),
@@ -64,12 +86,21 @@ def get_summary(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "moderate_count": int(risk_counts.get("MODERATE", 0)),
         "low_count": int(risk_counts.get("LOW", 0)),
         "date_range": date_range,
-        "latest_observation_date": dates[-1] if dates else None
+        "latest_observation_date": latest_date_str,
+        "last_data_update": last_update_ts,
+        "last_refresh_time": refresh_status.get("last_checked"),
+        "next_refresh_time": refresh_status.get("next_scheduled_refresh"),
+        "live_observations_count": live_count,
+        "historical_observations_count": hist_count,
+        "monitoring_mode": "NEAR_REAL_TIME"
     }
 
 
 @router.get("/observations", summary="List Enriched Satellite Hotspot Observations")
-def get_observations(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_observations(
+    stream_type: Optional[str] = Query(default=None, description="'all', 'near_real_time', or 'historical'"),
+    db: Session = Depends(get_db)
+) -> List[Dict[str, Any]]:
     """
     Returns the complete list of individual satellite hotspot observations enriched with
     spatial context, nearest industrial facility distance, and cluster associations.
@@ -79,6 +110,14 @@ def get_observations(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
 
     if obs_df.empty:
         return []
+
+    # Filter stream_type if specified
+    if stream_type and stream_type.lower() != "all" and "stream_type" in obs_df.columns:
+        target_stream = stream_type.lower()
+        if target_stream in ["near_real_time", "live", "nrt"]:
+            obs_df = obs_df[obs_df["stream_type"] == "near_real_time"]
+        elif target_stream in ["historical", "archive"]:
+            obs_df = obs_df[obs_df["stream_type"] != "near_real_time"]
 
     results = []
     for _, row in obs_df.iterrows():
@@ -101,7 +140,8 @@ def get_observations(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
             "risk_score": round(float(row.get("risk_score", 0.0)), 2),
             "risk_level": str(row.get("risk_level", "LOW")),
             "incident_classification": str(row.get("incident_classification", "NON_INDUSTRIAL_RURAL")),
-            "action_code": str(row.get("action_code", "BACKGROUND_LOG"))
+            "action_code": str(row.get("action_code", "BACKGROUND_LOG")),
+            "stream_type": str(row.get("stream_type", "historical"))
         })
 
     return results
@@ -181,8 +221,8 @@ def get_risk_prioritization(db: Session = Depends(get_db)) -> List[Dict[str, Any
                 "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
                 "persistence_ratio": round(float(row["persistence_ratio"]), 4),
                 "active_days_count": int(row["active_days_count"]),
-                "total_detections": int(row["total_detections"]),
-                "is_anomaly_spike": bool(row["is_anomaly_spike"])
+                "is_anomaly_spike": bool(row["is_anomaly_spike"]),
+                "total_detections": int(row["total_detections"])
             },
             "nearest_facility_name": str(row["nearest_facility_name"]),
             "nearest_facility_type": str(row["nearest_facility_type"]),
@@ -194,19 +234,15 @@ def get_risk_prioritization(db: Session = Depends(get_db)) -> List[Dict[str, Any
     return results
 
 
-@router.get("/geojson", summary="GeoJSON Layer of Hotspots & Cluster Centroids")
-def get_geojson(db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.get("/geojson", summary="Thermal Hotspots GeoJSON FeatureCollection")
+def get_geojson_layer(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Returns valid GeoJSON FeatureCollection formatted for Leaflet GIS mapping.
-    Contains both individual hotspot observations and physical cluster centroids.
+    Returns all satellite observations formatted as standard RFC 7946 GeoJSON Point features.
     """
     pipeline_data = PipelineService.get_analyzed_data(db)
     obs_df = pipeline_data["observations_df"]
-    clusters_df = pipeline_data["clusters_df"]
 
     features = []
-
-    # 1. Hotspot Observation Points
     if not obs_df.empty:
         for _, row in obs_df.iterrows():
             features.append({
@@ -216,55 +252,18 @@ def get_geojson(db: Session = Depends(get_db)) -> Dict[str, Any]:
                     "coordinates": [round(float(row["longitude"]), 6), round(float(row["latitude"]), 6)]
                 },
                 "properties": {
-                    "feature_type": "observation",
-                    "observation_id": int(row["id"]),
+                    "id": int(row["id"]),
                     "cluster_id": str(row["cluster_id"]),
-                    "acq_date": str(row["acq_date"]),
-                    "acq_time": str(row["acq_time"]),
                     "frp": round(float(row["frp"]), 2),
                     "brightness": round(float(row["brightness"]), 2),
-                    "confidence": str(row["confidence"]),
-                    "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
-                    "nearest_facility_name": str(row["nearest_facility_name"]),
-                    "nearest_facility_type": str(row["nearest_facility_type"]),
-                    "spatial_context": str(row["spatial_context"]),
-                    "risk_score": round(float(row.get("risk_score", 0.0)), 2),
+                    "acq_date": str(row["acq_date"]),
+                    "acq_time": str(row["acq_time"]),
                     "risk_level": str(row.get("risk_level", "LOW")),
-                    "incident_classification": str(row.get("incident_classification", "NON_INDUSTRIAL_RURAL")),
-                    "action_code": str(row.get("action_code", "BACKGROUND_LOG")),
-                    "daynight": str(row["daynight"])
-                }
-            })
-
-    # 2. Physical Cluster Centroids
-    if not clusters_df.empty:
-        for _, row in clusters_df.iterrows():
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [round(float(row["centroid_lon"]), 6), round(float(row["centroid_lat"]), 6)]
-                },
-                "properties": {
-                    "feature_type": "cluster_centroid",
-                    "cluster_id": str(row["cluster_id"]),
-                    "total_detections": int(row["total_detections"]),
-                    "active_days_count": int(row["active_days_count"]),
-                    "persistence_ratio": round(float(row["persistence_ratio"]), 4),
-                    "max_frp": round(float(row["max_frp"]), 2),
-                    "avg_frp": round(float(row["avg_frp"]), 2),
-                    "max_brightness": round(float(row["max_brightness"]), 2),
-                    "is_anomaly_spike": bool(row["is_anomaly_spike"]),
-                    "nearest_facility_name": str(row["nearest_facility_name"]),
-                    "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
-                    "risk_score": round(float(row["risk_score"]), 2),
-                    "risk_level": str(row["risk_level"]),
-                    "incident_classification": str(row["incident_classification"]),
-                    "action_code": str(row["action_code"]),
-                    "thermal_subscore": round(float(row.get("thermal_subscore", 0.0)), 2),
-                    "proximity_subscore": round(float(row.get("proximity_subscore", 0.0)), 2),
-                    "persistence_subscore": round(float(row.get("persistence_subscore", 0.0)), 2),
-                    "confidence_subscore": round(float(row.get("confidence_subscore", 0.0)), 2)
+                    "risk_score": round(float(row.get("risk_score", 0.0)), 2),
+                    "nearest_facility": str(row["nearest_facility_name"]),
+                    "distance_meters": round(float(row["distance_to_industry_meters"]), 1),
+                    "spatial_context": str(row["spatial_context"]),
+                    "stream_type": str(row.get("stream_type", "historical"))
                 }
             })
 
@@ -274,30 +273,29 @@ def get_geojson(db: Session = Depends(get_db)) -> Dict[str, Any]:
     }
 
 
-@router.get("/osm-industrial", summary="GeoJSON Layer of Industrial Facility Boundaries")
-def get_osm_industrial(db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.get("/osm-industrial", summary="OpenStreetMap Industrial Boundaries GeoJSON Layer")
+def get_osm_industrial_layer(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Returns the OpenStreetMap industrial polygons from the active geospatial layer.
-    Used by Leaflet to render industrial zones, refineries, and chemical parks.
+    Returns the 3,970 OpenStreetMap industrial polygons covering Gujarat.
     """
     pipeline_data = PipelineService.get_analyzed_data(db)
     return pipeline_data.get("osm_geojson", {"type": "FeatureCollection", "features": []})
 
 
-@router.get("/ml-evaluation", summary="Phase 5 Machine Learning Benchmark & Feature Importances")
+@router.get("/ml-evaluation", summary="ML Feature Importances & Spatial Group Cross-Validation")
 def get_ml_evaluation(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Returns Phase 5/8 Random Forest benchmark metrics, feature importance rankings,
-    and Spatial Group K-Fold cross-validation results.
+    Returns the Random Forest ML evaluation metrics including feature importances,
+    GroupKFold cross-validation scores, and spatial leakage disclosures.
     """
     return PipelineService.get_ml_evaluation(db)
 
 
-@router.get("/dataset", summary="Complete Historical Dataset with Provenance")
+@router.get("/dataset", summary="Enriched Dataset Export for Research & ML")
 def get_dataset(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
     """
-    Returns the complete list of historical satellite observations enriched with
-    spatial proximity, clustering, persistence, and ground-truth provenance labels.
+    Exports the complete enriched dataset with spatial context, persistence ratios,
+    and ground truth labels for scientific evaluation.
     """
     pipeline_data = PipelineService.get_analyzed_data(db)
     obs_df = pipeline_data["observations_df"]
@@ -306,37 +304,32 @@ def get_dataset(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
     return obs_df.to_dict(orient="records")
 
 
-@router.get("/dataset/quality", summary="Dataset Quality & Provenance Report")
+@router.get("/dataset/quality", summary="Dataset Quality & Completeness Report")
 def get_dataset_quality(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Returns the dynamic Data Quality Report detailing raw count, unique count,
-    class distribution, and scientific ML readiness.
+    Returns data quality metrics, missing value rates, spatial coordinate bounding box compliance,
+    and class distribution.
     """
     return PipelineService.get_dataset_quality(db)
 
 
-@router.get("/dataset/provenance", summary="Ground Truth Registry Provenance Catalog")
+@router.get("/dataset/provenance", summary="Ground Truth Incident Provenance Catalog")
 def get_dataset_provenance() -> List[Dict[str, Any]]:
     """
-    Returns the catalog of registered and documented ground-truth incidents.
+    Returns the ground-truth provenance registry with citations, coordinates, dates, and reviewer metadata.
     """
     return PipelineService.get_dataset_provenance()
 
 
-# ==============================================================================
-# PHASE 8B — GROUND TRUTH WORKFLOW APIS
-# ==============================================================================
-
-@router.get("/ground-truth", summary="List Observations for Ground-Truth Human Review")
+@router.get("/ground-truth", summary="Human Review Feed for Ground Truth Labeling")
 def get_ground_truth_feed(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
     """
-    Returns the list of satellite observations with spatial context, thermal metrics,
-    and current ground-truth labels for human inspection and labeling.
+    Returns observation records with their verified ground truth annotations (or UNLABELED status).
     """
     return PipelineService.get_ground_truth_feed(db)
 
 
-@router.post("/ground-truth/review", summary="Submit Human Ground-Truth Review Annotation")
+@router.post("/ground-truth/review", summary="Submit Human Ground Truth Review")
 def submit_ground_truth_review(
     review: GroundTruthReviewRequest,
     db: Session = Depends(get_db)
@@ -361,10 +354,6 @@ def get_ground_truth_quality(db: Session = Depends(get_db)) -> Dict[str, Any]:
     return PipelineService.get_ground_truth_quality(db)
 
 
-# ==============================================================================
-# PHASE 8D/8E/8F — PRODUCTION ML & PREDICTION APIS
-# ==============================================================================
-
 @router.get("/ml/status", summary="Machine Learning Readiness & Data Sufficiency Status", response_model=MLStatusResponse)
 def get_ml_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
@@ -387,20 +376,32 @@ def predict_ml(
 
 
 # ==============================================================================
-# PHASE 8A/22 — DATA REFRESH API
+# PHASE 11 — NEAR-REAL-TIME DATA REFRESH & STATUS APIS
 # ==============================================================================
 
-@router.post("/data/refresh", summary="Safe NASA FIRMS Historical/NRT Data Refresh", response_model=DataRefreshResponse)
+@router.get("/data/refresh/status", summary="Near-Real-Time Ingestion Job Status", response_model=DataRefreshStatusResponse)
+def get_refresh_status() -> Dict[str, Any]:
+    """
+    Exposes the thread-safe operational status of the near-real-time satellite ingestion engine.
+    States: IDLE, RUNNING, SUCCESS, FAILED.
+    """
+    return PipelineService.get_refresh_status()
+
+
+@router.post("/data/refresh", summary="Safe NASA FIRMS Near-Real-Time / Historical Data Refresh", response_model=DataRefreshResponse)
 def refresh_data(
     req: DataRefreshRequest,
     db: Session = Depends(get_db)
 ) -> DataRefreshResponse:
     """
     Fetches real FIRMS satellite observations, validates, deduplicates, commits new records
-    to the active SQLite database, updates spatial clusters, and invalidates in-memory caches.
+    to the active database, updates spatial clusters, and invalidates in-memory caches.
+    Enforces mutex job locking to prevent concurrent executions.
     """
     try:
         return PipelineService.refresh_firms_data(req, db)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error refreshing FIRMS data: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

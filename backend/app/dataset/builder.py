@@ -506,6 +506,7 @@ class DatasetBuilder:
             "observations_rural_gt_1km": total_unique - near_ind_count,
             "total_physical_clusters": clusters_count,
             "labeled_observations": labeled_count,
+            "total_verified_labels": labeled_count,
             "unlabeled_observations": unlabeled_count,
             "class_distribution": class_dist,
             "label_source_distribution": source_dist,

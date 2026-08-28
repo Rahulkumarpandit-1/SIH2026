@@ -15,7 +15,8 @@ import {
   Cpu,
   AlertTriangle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 
 export const HistoricalDataPage = () => {
@@ -29,6 +30,7 @@ export const HistoricalDataPage = () => {
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [labelFilter, setLabelFilter] = useState('ALL');
+  const [streamFilter, setStreamFilter] = useState('ALL'); // 'ALL' | 'NEAR-REAL-TIME' | 'HISTORICAL'
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
@@ -51,16 +53,20 @@ export const HistoricalDataPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const [qualityRes, provRes, dataRes, sumRes] = await Promise.all([
-        apiService.getDatasetQuality(),
-        apiService.getDatasetProvenance(),
-        apiService.getGroundTruth(),
-        apiService.getSummary()
+      const [qualityRes, provRes, dataRes, sumRes, statusRes] = await Promise.all([
+        apiService.getDatasetQuality().catch(() => null),
+        apiService.getDatasetProvenance().catch(() => []),
+        apiService.getGroundTruth().catch(() => []),
+        apiService.getSummary().catch(() => null),
+        apiService.getRefreshStatus().catch(() => null)
       ]);
       setQualityReport(qualityRes);
       setProvenanceList(Array.isArray(provRes) ? provRes : []);
       setDatasetRecords(Array.isArray(dataRes) ? dataRes : []);
       setSummary(sumRes);
+      if (statusRes && statusRes.status) {
+        setRefreshState(statusRes.status);
+      }
     } catch (err) {
       console.error('Failed to load historical dataset information:', err);
       setError('Historical dataset API is temporarily unavailable.');
@@ -121,7 +127,7 @@ export const HistoricalDataPage = () => {
     setRefreshState('RUNNING');
     setRefreshResult(null);
     try {
-      const res = await apiService.refreshData({ days: 5, sensor: 'VIIRS_SNPP_NRT' });
+      const res = await apiService.refreshData({ days: 1, sensor: 'VIIRS_SNPP_NRT', stream_type: 'near_real_time' });
       setRefreshResult(res);
       setRefreshState('SUCCESS');
       fetchData();
@@ -148,9 +154,15 @@ export const HistoricalDataPage = () => {
         (labelFilter === 'LABELED' && rec.label_name !== 'UNLABELED') ||
         (labelFilter === 'UNLABELED' && rec.label_name === 'UNLABELED');
 
-      return matchesSearch && matchesLabel;
+      const isNrt = rec.stream_type === 'near_real_time';
+      const matchesStream = 
+        streamFilter === 'ALL' ||
+        (streamFilter === 'NEAR-REAL-TIME' && isNrt) ||
+        (streamFilter === 'HISTORICAL' && !isNrt);
+
+      return matchesSearch && matchesLabel && matchesStream;
     });
-  }, [safeRecords, searchTerm, labelFilter]);
+  }, [safeRecords, searchTerm, labelFilter, streamFilter]);
 
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage) || 1;
   const paginatedRecords = useMemo(() => {
@@ -163,7 +175,7 @@ export const HistoricalDataPage = () => {
       {/* 01 — EDITORIAL HEADER */}
       <section className="editorial-header">
         <div className="section-tag">CENTRAL DATA WORKSPACE &bull; PROVENANCE ARCHIVE</div>
-        <h1 className="page-main-heading">Historical Telemetry &amp; Ground Truth Workspace</h1>
+        <h1 className="page-main-heading">Near-Real-Time Telemetry &amp; Ground Truth Workspace</h1>
         <p className="section-subtext">
           Rigorous separation between raw satellite radiance, spatial context geofencing,
           and independently verified ground truth. We strictly enforce zero synthetic label fabrication.
@@ -247,7 +259,7 @@ export const HistoricalDataPage = () => {
           <div className="situation-strip" style={{ marginTop: '1.25rem' }}>
             <div className="stat-node">
               <span className="stat-value font-mono">{qualityReport.total_raw_observations}</span>
-              <span className="stat-label">Raw Observations</span>
+              <span className="stat-label">Total Observations</span>
             </div>
             <div className="stat-separator" />
             <div className="stat-node">
@@ -257,7 +269,7 @@ export const HistoricalDataPage = () => {
             <div className="stat-separator" />
             <div className="stat-node">
               <span className="stat-value font-mono">{qualityReport.total_physical_clusters}</span>
-              <span className="stat-label">DBSCAN Clusters</span>
+              <span className="stat-label">Active Clusters</span>
             </div>
             <div className="stat-separator" />
             <div className="stat-node">
@@ -330,13 +342,30 @@ export const HistoricalDataPage = () => {
         <div className="section-header-flex">
           <div>
             <div className="section-tag">OBSERVATION EXPLORER &bull; ACTIVE REPOSITORY</div>
-            <h2 className="section-heading">All Ingested Observations &amp; Ground-Truth Review</h2>
+            <h2 className="section-heading">Ingested Satellite Observations &amp; Verification</h2>
             <p className="section-subtext">
               Inspect individual satellite detections or click "Review Label" to attach verified ground-truth citations.
             </p>
           </div>
 
           <div className="table-toolbar-clean" style={{ margin: 0 }}>
+            {/* Stream Filter */}
+            <div className="filter-button-group" style={{ marginRight: '0.5rem' }}>
+              {['ALL', 'NEAR-REAL-TIME', 'HISTORICAL'].map((st) => (
+                <button
+                  key={st}
+                  className={`filter-btn-text ${streamFilter === st ? 'active' : ''}`}
+                  onClick={() => {
+                    setStreamFilter(st);
+                    setCurrentPage(1);
+                  }}
+                  style={{ fontSize: '0.74rem' }}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+
             <input
               type="text"
               placeholder="Search by facility, cluster, ID..."
@@ -355,7 +384,7 @@ export const HistoricalDataPage = () => {
                 setCurrentPage(1);
               }}
             >
-              <option value="ALL">All Records ({safeRecords.length})</option>
+              <option value="ALL">All Label States ({safeRecords.length})</option>
               <option value="LABELED">Verified Only</option>
               <option value="UNLABELED">Unlabeled Only</option>
             </select>
@@ -369,6 +398,7 @@ export const HistoricalDataPage = () => {
                 <th>ID</th>
                 <th>Cluster</th>
                 <th>Acquisition</th>
+                <th>Stream</th>
                 <th>Peak FRP</th>
                 <th>Brightness</th>
                 <th>Industrial Distance</th>
@@ -380,7 +410,7 @@ export const HistoricalDataPage = () => {
             <tbody>
               {paginatedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                     No observations found matching the search and filter query.
                   </td>
                 </tr>
@@ -390,6 +420,11 @@ export const HistoricalDataPage = () => {
                     <td className="font-mono text-muted">#{rec.observation_id}</td>
                     <td className="font-mono font-bold">{rec.cluster_id}</td>
                     <td className="font-mono">{rec.acq_date} {rec.acq_time}</td>
+                    <td>
+                      <span className={`pill-badge font-mono ${rec.stream_type === 'near_real_time' ? 'pill-moderate' : 'pill-neutral'}`}>
+                        {rec.stream_type === 'near_real_time' ? 'NRT LIVE' : 'HISTORICAL'}
+                      </span>
+                    </td>
                     <td className="font-mono font-bold text-critical">{rec.frp} MW</td>
                     <td className="font-mono">{rec.brightness} K</td>
                     <td className="font-mono">
@@ -471,6 +506,7 @@ export const HistoricalDataPage = () => {
             <form onSubmit={handleSubmitReview} className="modal-body">
               <div className="obs-summary-box">
                 <div><strong>Observation ID:</strong> #{selectedObs.observation_id} ({selectedObs.acq_date} {selectedObs.acq_time})</div>
+                <div><strong>Stream Type:</strong> {selectedObs.stream_type === 'near_real_time' ? 'Near-Real-Time Stream' : 'Historical Archive'}</div>
                 <div><strong>Coordinates:</strong> {selectedObs.latitude?.toFixed(4)}°N, {selectedObs.longitude?.toFixed(4)}°E</div>
                 <div><strong>Telemetry:</strong> {selectedObs.frp} MW &bull; {selectedObs.brightness} K &bull; Boundary Dist: {selectedObs.distance_to_industry_meters}m</div>
               </div>
