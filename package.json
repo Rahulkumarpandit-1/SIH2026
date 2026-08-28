@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "SIH26162 Thermal Fire Intelligence Unified Project",
   "private": true,
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
     "dev": "py run_dev.py",
     "start": "py run_dev.py",
+    "postinstall": "npm install --prefix frontend",
     "dev:backend": "cd backend && py -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:frontend": "npm run dev --prefix frontend",
-    "build": "npm run build --prefix frontend",
+    "build": "npm install --prefix frontend && npm run build --prefix frontend",
     "test": "cd backend && py -m pytest -v"
   }
 }
