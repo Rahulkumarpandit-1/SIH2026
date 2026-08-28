@@ -1,0 +1,40 @@
+{
+  "dataset_version": "1.0.0",
+  "status": "INSUFFICIENT_LABELED_DATA",
+  "total_labeled_samples": 0,
+  "total_spatial_groups": 0,
+  "created_at_utc": "2026-08-28T11:22:55.670263+00:00",
+  "features_count": 9,
+  "feature_columns": [
+    "frp",
+    "brightness",
+    "bright_t31",
+    "thermal_contrast",
+    "distance_to_industry_meters",
+    "persistence_ratio",
+    "active_days_count",
+    "is_anomaly_spike",
+    "confidence_normalized"
+  ],
+  "forbidden_features_checked": [
+    "latitude",
+    "longitude",
+    "cluster_id",
+    "risk_score",
+    "risk_level",
+    "rule_engine_outputs",
+    "action_code",
+    "incident_classification",
+    "label",
+    "label_name",
+    "label_source",
+    "source_reference",
+    "source_citation",
+    "reviewer",
+    "thermal_subscore",
+    "proximity_subscore",
+    "persistence_subscore",
+    "confidence_subscore"
+  ],
+  "leakage_prevention_verified": true
+}

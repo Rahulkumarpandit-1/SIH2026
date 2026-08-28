@@ -1,0 +1,101 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/10101",
+      "properties": {
+        "osm_id": "way/10101",
+        "name": "Jamnagar Petroleum Refining Complex",
+        "landuse": "industrial",
+        "industrial": "oil_refinery",
+        "operator": "Reliance Industries Limited",
+        "hazard_category": "high_thermal_emission"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [70.0450, 22.4600],
+            [70.0700, 22.4600],
+            [70.0700, 22.4800],
+            [70.0450, 22.4800],
+            [70.0450, 22.4600]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/10102",
+      "properties": {
+        "osm_id": "way/10102",
+        "name": "Dahej PCPIR Petrochemical Complex",
+        "landuse": "industrial",
+        "industrial": "chemical",
+        "operator": "GIDC / Petrochemical Consortium",
+        "hazard_category": "chemical_combustible"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [72.5500, 21.6700],
+            [72.5850, 21.6700],
+            [72.5850, 21.7050],
+            [72.5500, 21.7050],
+            [72.5500, 21.6700]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/10103",
+      "properties": {
+        "osm_id": "way/10103",
+        "name": "Hazira Heavy Industrial & Steel Complex",
+        "landuse": "industrial",
+        "industrial": "steel",
+        "operator": "AMNS / Essar / Reliance Hazira",
+        "hazard_category": "metallurgical_furnaces"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [72.6750, 21.1500],
+            [72.7150, 21.1500],
+            [72.7150, 21.1850],
+            [72.6750, 21.1850],
+            [72.6750, 21.1500]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/10104",
+      "properties": {
+        "osm_id": "way/10104",
+        "name": "Vadodara GIDC Chemical Estate",
+        "landuse": "industrial",
+        "industrial": "chemical",
+        "operator": "Gujarat Industrial Development Corporation",
+        "hazard_category": "chemical_manufacturing"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [73.1650, 22.2950],
+            [73.1950, 22.2950],
+            [73.1950, 22.3250],
+            [73.1650, 22.3250],
+            [73.1650, 22.2950]
+          ]
+        ]
+      }
+    }
+  ]
+}

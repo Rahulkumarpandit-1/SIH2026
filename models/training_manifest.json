@@ -1,0 +1,16 @@
+{
+  "training_status": "SKIPPED",
+  "reason": "Training skipped due to insufficient scientifically valid labeled data.",
+  "ml_readiness": {
+    "status": "NOT_READY",
+    "reason": "Zero verified ground-truth labels available.",
+    "labeled_samples": 0,
+    "classes_present": 0,
+    "class_distribution": {},
+    "spatial_groups_count": 0,
+    "is_statistically_defensible": false,
+    "recommendation": "Use Phase 4 Transparent Multi-Signal Rule Engine as primary operational MVP."
+  },
+  "timestamp_utc": "2026-08-28T11:22:55.671287+00:00",
+  "samples_count": 0
+}

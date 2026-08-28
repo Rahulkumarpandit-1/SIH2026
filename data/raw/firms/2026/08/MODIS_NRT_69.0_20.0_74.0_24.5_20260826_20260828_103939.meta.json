@@ -1,0 +1,35 @@
+{
+  "source": "NASA_FIRMS_API",
+  "source_url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/51ca9bc710f3add041124d86ddbb631d/MODIS_NRT/69.0,20.0,74.0,24.5/2/2026-08-26",
+  "sensor": "MODIS_NRT",
+  "bbox": [
+    69.0,
+    20.0,
+    74.0,
+    24.5
+  ],
+  "day_range": 2,
+  "target_date": "2026-08-26",
+  "download_timestamp_utc": "2026-08-28T10:39:39.583486",
+  "raw_filename": "MODIS_NRT_69.0_20.0_74.0_24.5_20260826_20260828_103939.csv",
+  "raw_filepath": "C:\\Users\\LENOVO\\OneDrive\\Desktop\\SIH2026\\data\\raw\\firms\\2026\\08\\MODIS_NRT_69.0_20.0_74.0_24.5_20260826_20260828_103939.csv",
+  "raw_record_count": 0,
+  "sha256_checksum": "64ed71a4446426389026d389501df269e707d1ea071bdada2d8e34ced1bc37c9",
+  "columns": [
+    "latitude",
+    "longitude",
+    "brightness",
+    "scan",
+    "track",
+    "acq_date",
+    "acq_time",
+    "satellite",
+    "instrument",
+    "confidence",
+    "version",
+    "bright_t31",
+    "frp",
+    "daynight"
+  ],
+  "retrieval_status": "SUCCESS"
+}

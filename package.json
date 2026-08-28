@@ -1,0 +1,14 @@
+{
+  "name": "sih26162-root",
+  "version": "1.0.0",
+  "description": "SIH26162 Thermal Fire Intelligence Unified Project",
+  "private": true,
+  "scripts": {
+    "dev": "py run_dev.py",
+    "start": "py run_dev.py",
+    "dev:backend": "cd backend && py -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "test": "cd backend && py -m pytest -v"
+  }
+}

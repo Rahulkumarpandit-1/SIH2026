@@ -1,0 +1,83 @@
+{
+  "frp": {
+    "name": "Fire Radiative Power",
+    "unit": "Megawatts (MW)",
+    "description": "Direct thermal radiation measured by satellite sensors indicating combustion intensity.",
+    "valid_range": [
+      0.0,
+      10000.0
+    ]
+  },
+  "brightness": {
+    "name": "T4 Brightness Temperature",
+    "unit": "Kelvin (K)",
+    "description": "Peak middle-infrared (3.9 to 4.0 \u00b5m) channel brightness temperature.",
+    "valid_range": [
+      250.0,
+      500.0
+    ]
+  },
+  "bright_t31": {
+    "name": "T31 Background Temperature",
+    "unit": "Kelvin (K)",
+    "description": "Longwave thermal infrared (10.7 to 11.4 \u00b5m) background reference temperature.",
+    "valid_range": [
+      200.0,
+      400.0
+    ]
+  },
+  "thermal_contrast": {
+    "name": "Thermal Contrast (Delta T)",
+    "unit": "Kelvin (K)",
+    "description": "Sub-pixel combustion anomaly contrast calculated as T4 minus T31.",
+    "valid_range": [
+      -50.0,
+      250.0
+    ]
+  },
+  "distance_to_industry_meters": {
+    "name": "Distance to Industrial Boundary",
+    "unit": "Meters (m)",
+    "description": "Haversine distance from detection centroid to the nearest OpenStreetMap industrial boundary.",
+    "valid_range": [
+      0.0,
+      100000.0
+    ]
+  },
+  "persistence_ratio": {
+    "name": "Temporal Persistence Ratio",
+    "unit": "Ratio (0.0 to 1.0)",
+    "description": "Fraction of days with active thermal detections over the monitored observation window.",
+    "valid_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "active_days_count": {
+    "name": "Active Detection Days",
+    "unit": "Days (Count)",
+    "description": "Number of distinct calendar days with thermal satellite detections in the cluster.",
+    "valid_range": [
+      1,
+      365
+    ]
+  },
+  "is_anomaly_spike": {
+    "name": "Thermal Anomaly Spike Indicator",
+    "unit": "Binary Flag (0 or 1)",
+    "description": "Flag indicating if current FRP exceeds the cluster's historical median by 3.0\u00d7.",
+    "valid_range": [
+      0,
+      1
+    ]
+  },
+  "confidence_normalized": {
+    "name": "Normalized Detection Confidence",
+    "unit": "Score (0.0 to 1.0)",
+    "description": "Satellite instrument confidence normalized to a uniform scale.",
+    "valid_range": [
+      0.0,
+      1.0
+    ]
+  }
+}
