@@ -2,23 +2,25 @@ import axios from 'axios';
 
 /**
  * Resolves the API Base URL deterministically:
- * 1. If VITE_API_BASE_URL environment variable is provided, use it.
+ * 1. If VITE_API_BASE_URL environment variable is provided, trim trailing slash and use it.
  * 2. In development (DEV mode), default to http://127.0.0.1:8000.
- * 3. In production, fallback to relative path.
+ * 3. In production, fallback to relative path or default public API.
  */
 const getApiBaseUrl = () => {
-  if (import.meta.env.VITE_API_BASE_URL !== undefined && import.meta.env.VITE_API_BASE_URL !== '') {
-    return import.meta.env.VITE_API_BASE_URL;
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '') {
+    return envUrl.trim().replace(/\/+$/, '');
   }
   if (import.meta.env.DEV) {
     return 'http://127.0.0.1:8000';
   }
-  return '';
+  // Default to hosted Render API when running on Vercel without env var
+  return 'https://sih2026-api.onrender.com';
 };
 
 export const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
