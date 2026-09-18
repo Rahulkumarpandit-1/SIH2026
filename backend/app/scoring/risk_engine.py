@@ -153,6 +153,46 @@ class RiskScoringEngine:
         }
 
     @classmethod
+    def generate_risk_drivers(
+        cls,
+        risk_level: str = "LOW",
+        thermal_status: Optional[str] = None,
+        abnormality_status: Optional[str] = None,
+        population_exposure: Optional[str] = None,
+        downwind_exposure: Optional[str] = None
+    ) -> List[str]:
+        """
+        Synthesizes high-priority explainable risk drivers for incident response triage.
+        Example drivers:
+          - Critical Facility Excursion
+          - Severe Thermal Abnormality
+          - High Population Exposure
+        """
+        drivers = []
+        if thermal_status == "CRITICAL":
+            drivers.append("Critical Facility Excursion")
+        elif thermal_status == "ABNORMAL":
+            drivers.append("Elevated Facility Excursion")
+
+        if abnormality_status == "SEVERELY_ABNORMAL":
+            drivers.append("Severe Thermal Abnormality")
+        elif abnormality_status == "ABNORMAL":
+            drivers.append("Abnormal Combustion Pattern")
+
+        if population_exposure == "HIGH":
+            drivers.append("High Population Exposure")
+        elif downwind_exposure == "HIGH":
+            drivers.append("Downwind Plume Hazard")
+
+        if not drivers:
+            if risk_level in ["CRITICAL", "HIGH"]:
+                drivers.append("High Combustion Radiative Flux")
+            else:
+                drivers.append("Routine Operational Baseline")
+
+        return drivers
+
+    @classmethod
     def score_clusters_dataframe(cls, cluster_summary_df: pd.DataFrame) -> pd.DataFrame:
         """
         Enriches a cluster summary DataFrame with composite risk scores and classifications.

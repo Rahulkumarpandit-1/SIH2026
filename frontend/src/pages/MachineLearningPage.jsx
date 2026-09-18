@@ -394,7 +394,7 @@ export const MachineLearningPage = () => {
           </div>
 
           {predictionResult && (
-            <div style={{ marginTop: '1.25rem', background: '#FFFFFF', padding: '1.25rem', borderRadius: '4px', border: '1px solid var(--border-divider)' }}>
+            <div style={{ marginTop: '1.25rem', background: 'var(--bg-primary)', padding: '1.25rem', borderRadius: '4px', border: '1px solid var(--border-divider)' }}>
               <div className="section-tag">PREDICTION INFERENCE RESPONSE</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
                 <div>

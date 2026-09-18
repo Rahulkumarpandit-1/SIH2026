@@ -13,8 +13,16 @@ from app.models.schemas import (
     DataRefreshRequest,
     DataRefreshResponse,
     DataRefreshStatusResponse,
-    DashboardSummaryResponse
+    DashboardSummaryResponse,
+    WeatherContext,
+    ExposureContext,
+    FacilityThermalFingerprint,
+    AbnormalityDetectionResult
 )
+from app.ingestion.weather_client import WeatherClient
+from app.spatial.exposure_engine import ExposureAnalysisService
+from app.scoring.facility_fingerprint import FacilityFingerprintEngine
+from app.scoring.abnormality_engine import AbnormalityEngine
 
 router = APIRouter(prefix="/api", tags=["Dashboard & Telemetry"])
 
@@ -178,7 +186,11 @@ def get_clusters(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
             "distance_to_industry_meters": round(float(row["distance_to_industry_meters"]), 1),
             "spatial_context": str(row["spatial_context"]),
             "persistence_category": str(row.get("persistence_category", "UNKNOWN")),
-            "incident_classification": str(row.get("incident_classification", "UNKNOWN"))
+            "incident_classification": str(row.get("incident_classification", "UNKNOWN")),
+            "weather_context": row.get("weather_context") or {},
+            "exposure_context": row.get("exposure_context") or {},
+            "facility_fingerprint": row.get("facility_fingerprint") or {},
+            "abnormality_detection": row.get("abnormality_detection") or {}
         })
 
     return results
@@ -228,10 +240,97 @@ def get_risk_prioritization(db: Session = Depends(get_db)) -> List[Dict[str, Any
             "nearest_facility_type": str(row["nearest_facility_type"]),
             "spatial_context": str(row["spatial_context"]),
             "centroid_latitude": round(float(row["centroid_lat"]), 6),
-            "centroid_longitude": round(float(row["centroid_lon"]), 6)
+            "centroid_longitude": round(float(row["centroid_lon"]), 6),
+            "weather_context": row.get("weather_context") or {},
+            "exposure_context": row.get("exposure_context") or {},
+            "facility_fingerprint": row.get("facility_fingerprint") or {},
+            "abnormality_detection": row.get("abnormality_detection") or {}
         })
 
     return results
+
+
+@router.get("/weather", summary="Live Meteorological Context at Coordinates", response_model=WeatherContext)
+def get_weather(
+    latitude: float = Query(..., ge=-90.0, le=90.0, description="Latitude in decimal degrees"),
+    longitude: float = Query(..., ge=-180.0, le=180.0, description="Longitude in decimal degrees")
+) -> Dict[str, Any]:
+    """
+    Fetches real-time atmospheric context (wind speed, wind direction, temperature, cloud cover,
+    precipitation) via Open-Meteo API with 15-minute in-memory caching and observation confidence scoring.
+    """
+    return WeatherClient.get_weather_context(latitude, longitude)
+
+
+@router.get("/exposure", summary="Incident Geospatial Exposure Analysis", response_model=ExposureContext)
+def get_exposure(
+    latitude: float = Query(..., ge=-90.0, le=90.0, description="Latitude in decimal degrees"),
+    longitude: float = Query(..., ge=-180.0, le=180.0, description="Longitude in decimal degrees"),
+    wind_direction_deg: Optional[float] = Query(default=None, ge=0.0, le=360.0, description="Wind direction in degrees (0-360)"),
+    wind_speed_kmh: Optional[float] = Query(default=None, ge=0.0, le=300.0, description="Wind speed in km/h")
+) -> Dict[str, Any]:
+    """
+    Executes multi-domain exposure analysis evaluating Population, Infrastructure,
+    Environmental, and Downwind Plume Sector exposure around given coordinates.
+    If wind parameters are omitted, live atmospheric context is queried automatically.
+    """
+    if wind_direction_deg is None or wind_speed_kmh is None:
+        wx = WeatherClient.get_weather_context(latitude, longitude)
+        wind_direction_deg = float(wx.get("wind_direction_deg", 180.0))
+        wind_speed_kmh = float(wx.get("wind_speed_kmh", 15.0))
+
+    return ExposureAnalysisService.analyze_incident_exposure(
+        lat=latitude,
+        lon=longitude,
+        wind_direction_deg=wind_direction_deg,
+        wind_speed_kmh=wind_speed_kmh
+    )
+
+
+@router.get("/facilities/fingerprint", summary="Facility Historical Thermal Baseline Profile", response_model=FacilityThermalFingerprint)
+def get_facility_fingerprint(
+    facility_name: str = Query(..., description="Name of industrial facility"),
+    current_frp: float = Query(default=15.0, ge=0.0, description="Current observed peak FRP in MW"),
+    facility_type: Optional[str] = Query(default=None, description="Optional facility classification")
+) -> Dict[str, Any]:
+    """
+    Evaluates observed thermal radiative power against the facility's authoritative historical baseline,
+    computing anomaly ratio, operational deviation status (NORMAL/ELEVATED/ABNORMAL/CRITICAL), and explanation.
+    """
+    return FacilityFingerprintEngine.evaluate_incident_fingerprint(
+        facility_name=facility_name,
+        current_frp=current_frp,
+        facility_type=facility_type
+    )
+
+
+@router.get("/abnormality", summary="Evaluate Multi-Dimensional Abnormality Profile", response_model=AbnormalityDetectionResult)
+def get_abnormality(
+    facility_name: str = Query(default="Industrial Facility", description="Name of industrial facility"),
+    current_frp: float = Query(default=25.0, ge=0.0, description="Current peak observed FRP in MW"),
+    avg_frp: Optional[float] = Query(default=None, ge=0.0, description="Cluster average FRP in MW"),
+    active_days: Optional[int] = Query(default=1, ge=1, description="Active observation days count"),
+    total_detections: Optional[int] = Query(default=1, ge=1, description="Total satellite detections count"),
+    is_anomaly_spike: Optional[bool] = Query(default=False, description="Whether acute anomaly spike was flagged"),
+    facility_type: Optional[str] = Query(default=None, description="Optional facility classification"),
+    baseline_frp: Optional[float] = Query(default=None, ge=0.0, description="Optional custom baseline FRP override")
+) -> Dict[str, Any]:
+    """
+    Evaluates multi-dimensional operational abnormality across Heat Intensity,
+    Persistence Duration, Thermal Growth, and Recurrence Frequency.
+    Returns composite abnormality score (0-100), status classification, and explainable reasons.
+    """
+    return AbnormalityEngine.evaluate_abnormality(
+        facility_name=facility_name,
+        current_frp=current_frp,
+        avg_frp=avg_frp,
+        active_days=active_days,
+        total_detections=total_detections,
+        is_anomaly_spike=is_anomaly_spike,
+        facility_type=facility_type,
+        baseline_frp_override=baseline_frp
+    )
+
 
 
 @router.get("/geojson", summary="Thermal Hotspots GeoJSON FeatureCollection")

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Menu, X, RefreshCw } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 export const Navbar = ({ 
   currentView, 
@@ -47,29 +48,33 @@ export const Navbar = ({
           ))}
         </div>
 
-        {/* Status Indicator */}
-        <div className="nav-status-indicator">
-          {isRefreshing ? (
-            <>
-              <RefreshCw size={12} className="spin-anim text-warning" />
-              <span className="text-warning">INGESTING FIRMS...</span>
-            </>
-          ) : (
-            <>
-              <div className={`live-dot ${isOnline ? '' : 'offline'}`} />
-              <span>{isOnline ? 'SYSTEM LIVE' : 'API OFFLINE'}</span>
-            </>
-          )}
-        </div>
+        {/* Right Section: Theme Toggle & Status Indicator */}
+        <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <ThemeToggle />
 
-        {/* Mobile Menu Toggle */}
-        <button
-          className="mobile-toggle-btn"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle navigation"
-        >
-          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
+          <div className="nav-status-indicator">
+            {isRefreshing ? (
+              <>
+                <RefreshCw size={12} className="spin-anim text-warning" />
+                <span className="text-warning">INGESTING FIRMS...</span>
+              </>
+            ) : (
+              <>
+                <div className={`live-dot ${isOnline ? '' : 'offline'}`} />
+                <span>{isOnline ? 'SYSTEM LIVE' : 'API OFFLINE'}</span>
+              </>
+            )}
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            className="mobile-toggle-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle navigation"
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Drawer */}
@@ -84,6 +89,9 @@ export const Navbar = ({
               {item.label}
             </button>
           ))}
+
+          {/* Mobile Theme Toggle Row */}
+          <ThemeToggle variant="drawer" />
         </div>
       )}
     </nav>

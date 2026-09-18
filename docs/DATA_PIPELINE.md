@@ -49,3 +49,16 @@ $$\text{Natural Key} = \big(\text{round}(\text{lat}, 4), \text{round}(\text{lon}
 2. **DBSCAN Spatio-Temporal Clustering**: Groups nearby hotspot pixels within a 750-meter radius into distinct physical clusters.
 3. **Temporal Persistence Engine**: Evaluates active day ratios ($P_{\text{ratio}} = \text{days\_active} / \text{monitored\_window}$) and identifies acute 3.0× FRP anomaly surges.
 4. **Leakage-Free Export**: Saves structured datasets under `data/processed/` and exports strict 9D predictive matrices under `data/ml/`.
+
+---
+
+## 5. Meteorological & Weather Context Enrichment
+1. **Open-Meteo Integration**: Ingests real-time atmospheric telemetry (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `cloud_cover`, `precipitation`) without API-key friction.
+2. **Quantized In-Memory Caching**: Implements a 15-minute TTL cache keyed by 2-decimal latitude/longitude quantization (~1.1 km spatial grid).
+3. **Plume Dispersion & Cardinal Heading**: Derives meteorological wind direction (0°–360° to 16 cardinal points) and downwind smoke/toxic plume dispersion heading ($(\text{wind\_direction} + 180^\circ) \bmod 360^\circ$).
+4. **Observation Confidence Calibration**:
+   - Cloud Cover $0\% \text{–} 30\% \to \text{HIGH}$ (clear sky observation confidence)
+   - Cloud Cover $31\% \text{–} 70\% \to \text{MEDIUM}$ (moderate cloud attenuation)
+   - Cloud Cover $71\% \text{–} 100\% \to \text{LOW}$ (severe cloud obscuration / thermal signal attenuation)
+5. **Atmospheric Spread Concern**: Evaluates rain suppression ($>0.5\text{ mm/h}$) and wind propagation risk ($>35\text{ km/h} \to \text{CRITICAL}$, $>20\text{ km/h} \to \text{ELEVATED}$).
+

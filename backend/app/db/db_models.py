@@ -40,3 +40,26 @@ class RawObservationModel(Base):
 
     def __repr__(self) -> str:
         return f"<RawObservation(id={self.id}, lat={self.latitude}, lon={self.longitude}, date={self.acq_date}, frp={self.frp}MW, stream={self.stream_type})>"
+
+
+class FacilityThermalProfileModel(Base):
+    """Maintains historical thermal fingerprints, baselines, and variance for industrial installations."""
+    
+    __tablename__ = "facility_thermal_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    facility_name = Column(String(120), unique=True, nullable=False, index=True)
+    facility_type = Column(String(50), nullable=True)
+    avg_frp = Column(Float, nullable=False, default=12.0)
+    max_frp = Column(Float, nullable=False, default=25.0)
+    std_frp = Column(Float, nullable=True, default=4.0)
+    total_detections = Column(Integer, nullable=False, default=1)
+    persistence_days = Column(Integer, nullable=False, default=1)
+    event_frequency = Column(String(50), nullable=True, default="RECURRING_DAILY")
+    seasonal_behavior = Column(String(250), nullable=True, default="Consistent Year-Round Emissions")
+    last_observed_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self) -> str:
+        return f"<FacilityThermalProfile(facility='{self.facility_name}', avg_frp={self.avg_frp}MW, max_frp={self.max_frp}MW)>"
+

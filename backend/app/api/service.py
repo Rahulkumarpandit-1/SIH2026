@@ -17,6 +17,7 @@ from app.core.logging import logger
 from app.db.db_models import RawObservationModel
 from app.ingestion.osm_client import OSMClient
 from app.ingestion.historical_firms import HistoricalFIRMSIngester
+from app.ingestion.weather_client import WeatherClient
 from app.spatial.proximity import SpatialProximityEngine
 from app.spatial.clustering import SpatioTemporalClusterer
 from app.spatial.persistence import PersistenceEngine
@@ -140,6 +141,73 @@ class PipelineService:
 
         # 3. Multi-Signal Risk Scoring (Phase 4)
         scored_clusters_df = RiskScoringEngine.score_clusters_dataframe(cluster_summary_df)
+
+        # 3.5. Meteorological Context Enrichment (Open-Meteo)
+        from concurrent.futures import ThreadPoolExecutor
+        coords = [
+            (float(row.get("centroid_lat", 21.0)), float(row.get("centroid_lon", 71.0)))
+            for _, row in scored_clusters_df.iterrows()
+        ]
+        max_workers = min(max(len(coords), 1), 8)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            weather_contexts = list(executor.map(lambda pt: WeatherClient.get_weather_context(pt[0], pt[1]), coords))
+        scored_clusters_df["weather_context"] = weather_contexts
+
+        # 3.6. Geospatial Exposure & Consequence Analysis (Population, Infrastructure, Environment, Downwind)
+        from app.spatial.exposure_engine import ExposureAnalysisService
+        exposure_contexts = []
+        for _, row in scored_clusters_df.iterrows():
+            c_lat = float(row.get("centroid_lat", 21.0))
+            c_lon = float(row.get("centroid_lon", 71.0))
+            w_ctx = row.get("weather_context", {}) or {}
+            w_dir = w_ctx.get("wind_direction_deg", 180.0)
+            w_spd = w_ctx.get("wind_speed_kmh", 15.0)
+            exp_ctx = ExposureAnalysisService.analyze_incident_exposure(
+                lat=c_lat,
+                lon=c_lon,
+                wind_direction_deg=w_dir,
+                wind_speed_kmh=w_spd
+            )
+            exposure_contexts.append(exp_ctx)
+        scored_clusters_df["exposure_context"] = exposure_contexts
+
+        # 3.7. Facility Thermal Fingerprint Engine (Historical Baseline vs Current Excursion)
+        from app.scoring.facility_fingerprint import FacilityFingerprintEngine
+        facility_fingerprints = []
+        for _, row in scored_clusters_df.iterrows():
+            fac_name = str(row.get("nearest_facility_name", "Industrial Facility"))
+            max_frp = float(row.get("max_frp", 10.0))
+            fac_type = str(row.get("nearest_facility_type", "industrial"))
+            fp = FacilityFingerprintEngine.evaluate_incident_fingerprint(
+                facility_name=fac_name,
+                current_frp=max_frp,
+                facility_type=fac_type
+            )
+            facility_fingerprints.append(fp)
+        scored_clusters_df["facility_fingerprint"] = facility_fingerprints
+
+        # 3.8. Multi-Dimensional Abnormality Detection Engine
+        from app.scoring.abnormality_engine import AbnormalityEngine
+        abnormality_detections = []
+        for _, row in scored_clusters_df.iterrows():
+            fac_name = str(row.get("nearest_facility_name", "Industrial Facility"))
+            max_frp = float(row.get("max_frp", 10.0))
+            avg_frp = float(row.get("avg_frp", max_frp))
+            active_days = int(row.get("active_days_count", 1))
+            total_detections = int(row.get("total_detections", 1))
+            is_spike = bool(row.get("is_anomaly_spike", False))
+            fac_type = str(row.get("nearest_facility_type", "industrial"))
+            abnormality = AbnormalityEngine.evaluate_abnormality(
+                facility_name=fac_name,
+                current_frp=max_frp,
+                avg_frp=avg_frp,
+                active_days=active_days,
+                total_detections=total_detections,
+                is_anomaly_spike=is_spike,
+                facility_type=fac_type
+            )
+            abnormality_detections.append(abnormality)
+        scored_clusters_df["abnormality_detection"] = abnormality_detections
 
         # Merge cluster-level risk score and classification back to observation level
         risk_map = scored_clusters_df.set_index("cluster_id")[

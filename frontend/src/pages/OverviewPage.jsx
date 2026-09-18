@@ -380,6 +380,21 @@ export const OverviewPage = ({
                 <span className="evidence-value font-mono text-secondary">UNLABELED</span>
                 <span className="evidence-sub">Awaiting Human Review</span>
               </div>
+
+              {criticalIncident.abnormality_detection && criticalIncident.abnormality_detection.abnormality_status && (
+                <div className="evidence-cell">
+                  <span className="evidence-label">Abnormality Status</span>
+                  <span className={`evidence-value font-mono ${
+                    criticalIncident.abnormality_detection.abnormality_status === 'SEVERELY_ABNORMAL' ? 'text-critical' :
+                    criticalIncident.abnormality_detection.abnormality_status === 'ABNORMAL' ? 'text-warning' : ''
+                  }`}>
+                    {criticalIncident.abnormality_detection.abnormality_status.replace('_', ' ')}
+                  </span>
+                  <span className="evidence-sub">
+                    Score: {criticalIncident.abnormality_detection.abnormality_score?.toFixed(0)}/100
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="critical-footer-row">
@@ -421,6 +436,7 @@ export const OverviewPage = ({
           <GISMapView
             observations={safeObs}
             clusters={safeClusters}
+            riskData={riskData}
             industrialPolygons={industrialPolygons}
             selectedCluster={criticalIncident}
             onSelectCluster={(c) => onOpenIncidentDetail(c)}

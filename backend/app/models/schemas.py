@@ -254,3 +254,116 @@ class DashboardSummaryResponse(BaseModel):
     live_observations_count: int = 0
     historical_observations_count: int = 0
     monitoring_mode: str = "NEAR_REAL_TIME"
+
+
+class WeatherContext(BaseModel):
+    """Real-time atmospheric context schema enriched via Open-Meteo API."""
+    wind_speed_kmh: float = Field(..., description="Wind speed at 10m height in km/h")
+    wind_direction_deg: int = Field(..., description="Wind azimuth direction in degrees (0-360)")
+    wind_cardinal: str = Field(..., description="Cardinal wind direction (e.g. WSW)")
+    temperature_c: float = Field(..., description="Ambient air temperature at 2m in Celsius")
+    cloud_cover_pct: int = Field(..., description="Cloud cover percentage (0-100%)")
+    precipitation_mm: float = Field(..., description="Current precipitation in mm")
+    observation_confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Satellite observation confidence based on cloud cover")
+    spread_concern: str = Field(..., description="Spread concern factor based on wind velocity and precipitation")
+    plume_dispersion_heading: str = Field(..., description="Heading direction smoke and gaseous plumes will drift")
+    cached: bool = Field(default=False, description="True if retrieved from 15-minute in-memory cache")
+    source: str = Field(default="Open-Meteo API", description="Data provenance source")
+    timestamp_utc: Optional[str] = Field(default=None, description="ISO timestamp of weather observation")
+
+
+class ExposureAsset(BaseModel):
+    """Identified spatial asset in vicinity of an industrial fire incident."""
+    asset_id: str
+    name: str
+    category: Literal["POPULATION", "INFRASTRUCTURE", "ENVIRONMENTAL"]
+    sub_type: str
+    criticality: str
+    distance_km: float
+    bearing_deg: float
+    cardinal_direction: str
+    is_downwind: bool
+    latitude: float
+    longitude: float
+
+
+class ExposureContext(BaseModel):
+    """Comprehensive multi-domain exposure intelligence schema."""
+    population_exposure: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Population settlement exposure risk")
+    infrastructure_exposure: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Highway, rail, and energy infrastructure exposure risk")
+    environmental_exposure: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Forest, mangrove, water body, and agricultural exposure risk")
+    downwind_exposure: Literal["HIGH", "MEDIUM", "LOW"] = Field(..., description="Atmospheric plume hazard exposure along wind vector")
+    exposure_summary: str = Field(..., description="Natural language consequence assessment")
+    nearby_assets: List[ExposureAsset] = Field(default_factory=list, description="Top proximity and downwind exposed assets")
+    downwind_cone_geojson: Optional[Dict[str, Any]] = Field(default=None, description="GeoJSON Polygon of potential downwind impact sector")
+
+
+class FacilityThermalFingerprint(BaseModel):
+    """Historical facility thermal baseline and excursion evaluation schema."""
+    facility_name: str = Field(..., description="Name of industrial facility")
+    facility_type: Optional[str] = Field(default="industrial", description="Facility classification")
+    baseline_frp: float = Field(..., description="Historical baseline FRP in MW")
+    current_frp: float = Field(..., description="Current observed peak FRP in MW")
+    anomaly_ratio: float = Field(..., description="Current FRP divided by historical baseline")
+    thermal_status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "CRITICAL"] = Field(..., description="Thermal excursion status")
+    explanation: str = Field(..., description="Explainable rationale comparing current flux to baseline")
+    max_historical_frp: float = Field(default=25.0, description="Highest FRP ever recorded at this facility")
+    persistence_days: int = Field(default=1, description="Historical active flaring/combustion duration in days")
+    event_frequency: str = Field(default="RECURRING_OPERATIONAL", description="Historical recurrence pattern")
+    seasonal_behavior: str = Field(default="Constant Year-Round Baseline", description="Seasonal atmospheric emission behavior")
+
+
+class IntensityAnomalyDetail(BaseModel):
+    """Intensity anomaly comparing observed FRP to historical facility baseline."""
+    score: float = Field(..., description="Intensity anomaly subscore 0-100")
+    status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "SEVERELY_ABNORMAL"] = Field(..., description="Intensity anomaly status")
+    current_frp: float = Field(..., description="Current observed peak FRP in MW")
+    baseline_frp: float = Field(..., description="Facility historical baseline FRP in MW")
+    ratio: float = Field(..., description="Multiplier ratio of current FRP to baseline FRP")
+    detail: str = Field(..., description="Human-readable summary of intensity anomaly")
+
+
+class PersistenceAnomalyDetail(BaseModel):
+    """Persistence anomaly comparing active duration to expected baseline duration."""
+    score: float = Field(..., description="Persistence anomaly subscore 0-100")
+    status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "SEVERELY_ABNORMAL"] = Field(..., description="Persistence anomaly status")
+    current_duration_days: int = Field(..., description="Current observed active days/duration")
+    expected_duration_days: int = Field(..., description="Expected baseline operational duration in days")
+    excess_percentage: float = Field(..., description="Percentage duration exceeds normal baseline")
+    detail: str = Field(..., description="Human-readable summary of persistence anomaly")
+
+
+class GrowthAnomalyDetail(BaseModel):
+    """Growth pattern anomaly comparing peak surge to average cluster FRP."""
+    score: float = Field(..., description="Growth anomaly subscore 0-100")
+    status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "SEVERELY_ABNORMAL"] = Field(..., description="Growth anomaly status")
+    growth_rate_pct: float = Field(..., description="Thermal growth rate percentage above mean")
+    peak_to_mean_ratio: float = Field(..., description="Peak FRP divided by mean FRP")
+    trend: str = Field(..., description="Growth trend classification (e.g., STABLE, EXPANDING, ACCELERATING, EXPLOSIVE)")
+    detail: str = Field(..., description="Human-readable summary of growth anomaly")
+
+
+class RecurrenceAnomalyDetail(BaseModel):
+    """Recurrence anomaly comparing observed event frequency to monthly baseline."""
+    score: float = Field(..., description="Recurrence anomaly subscore 0-100")
+    status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "SEVERELY_ABNORMAL"] = Field(..., description="Recurrence anomaly status")
+    observed_frequency: int = Field(..., description="Observed event/detection frequency")
+    baseline_frequency: int = Field(..., description="Expected monthly baseline frequency")
+    ratio: float = Field(..., description="Ratio of observed frequency to baseline frequency")
+    detail: str = Field(..., description="Human-readable summary of recurrence anomaly")
+
+
+class AbnormalityDetectionResult(BaseModel):
+    """Unified multi-dimensional abnormality detection evaluation."""
+    abnormality_score: float = Field(..., description="Composite abnormality score 0-100")
+    abnormality_status: Literal["NORMAL", "ELEVATED", "ABNORMAL", "SEVERELY_ABNORMAL"] = Field(..., description="Overall abnormality status")
+    intensity_anomaly: IntensityAnomalyDetail
+    persistence_anomaly: PersistenceAnomalyDetail
+    growth_anomaly: GrowthAnomalyDetail
+    recurrence_anomaly: RecurrenceAnomalyDetail
+    explanation: List[str] = Field(..., description="Itemized bullet reasons explaining abnormality drivers")
+    narrative: str = Field(..., description="Synthesized plain-language diagnostic narrative")
+
+
+
+

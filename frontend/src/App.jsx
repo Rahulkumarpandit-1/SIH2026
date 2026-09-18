@@ -11,8 +11,10 @@ import DetectionTimelinePage from './pages/DetectionTimelinePage';
 import MethodologyPage from './pages/MethodologyPage';
 import Footer from './components/Footer';
 import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
-export const App = () => {
+export const AppContent = () => {
+  const { theme } = useTheme();
   // Navigation View State: 'overview' | 'incidents' | 'incident-detail' | 'gis' | 'historical' | 'ml' | 'timeline' | 'methodology'
   const [currentView, setCurrentView] = useState('overview');
 
@@ -103,7 +105,7 @@ export const App = () => {
   };
 
   return (
-    <div className="app-root white-theme">
+    <div className={`app-root ${theme}-theme`}>
       {/* 1. Minimal Top Navigation Bar */}
       <Navbar
         currentView={currentView === 'incident-detail' ? 'incidents' : currentView}
@@ -236,5 +238,11 @@ export const App = () => {
     </div>
   );
 };
+
+export const App = () => (
+  <ThemeProvider>
+    <AppContent />
+  </ThemeProvider>
+);
 
 export default App;

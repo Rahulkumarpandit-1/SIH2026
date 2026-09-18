@@ -5,6 +5,9 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import { Eye, Layers, RotateCcw, ArrowRight, MapPin, Radio, Activity, Clock } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { MAP_PROVIDERS } from '../services/mapConfig';
+import MapLayerControl from '../components/MapLayerControl';
 
 const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [] }) => {
   const map = useMap();
@@ -34,6 +37,14 @@ export const GISExplorerPage = ({
   industrialPolygons,
   onOpenIncidentDetail
 }) => {
+  const { isDark } = useTheme();
+  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
+
+  useEffect(() => {
+    setLayerType(isDark ? 'dark' : 'streets');
+  }, [isDark]);
+
+  const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
   const safeObs = Array.isArray(observations) ? observations : [];
   const safeClusters = Array.isArray(clusters) ? clusters : [];
   const safeRisk = Array.isArray(riskData) ? riskData : [];
@@ -89,13 +100,12 @@ export const GISExplorerPage = ({
     setTargetCoords([clusterItem.centroid_latitude, clusterItem.centroid_longitude]);
   };
 
-  const getRiskColor = (level) => {
-    switch (level) {
-      case 'CRITICAL': return '#D92D20';
-      case 'HIGH': return '#B7791F';
-      case 'MODERATE': return '#B7791F';
-      default: return '#287A4B';
-    }
+  const getRiskColor = (level, score) => {
+    const normalized = String(level || '').toUpperCase();
+    if (normalized === 'CRITICAL' || (score !== undefined && score >= 75)) return '#EF4444';
+    if (normalized === 'HIGH' || (score !== undefined && score >= 50)) return '#F97316';
+    if (normalized === 'MODERATE' || (score !== undefined && score >= 25)) return '#F59E0B';
+    return '#10B981';
   };
 
   return (
@@ -116,37 +126,40 @@ export const GISExplorerPage = ({
           </div>
         </div>
 
-        <div className="filter-button-group">
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', marginRight: '0.4rem', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showHotspots}
-              onChange={(e) => setShowHotspots(e.target.checked)}
-            />
-            <span>Hotspots ({filteredObservations.length})</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', marginRight: '0.4rem', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showClusters}
-              onChange={(e) => setShowClusters(e.target.checked)}
-            />
-            <span>Centroids ({filteredClusters.length})</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', marginRight: '0.8rem', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showPolygons}
-              onChange={(e) => setShowPolygons(e.target.checked)}
-            />
-            <span>3,970 Industrial Polygons</span>
-          </label>
-
-          <button className="filter-btn-text" onClick={() => setTriggerFitAll((p) => p + 1)}>
-            Fit All
+        {/* Live Filter Controls */}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            className={`filter-btn-text ${selectedRisk === 'ALL' ? 'active' : ''}`}
+            onClick={() => setSelectedRisk('ALL')}
+          >
+            All Severities ({safeClusters.length})
           </button>
-          <button className="filter-btn-text" onClick={() => setTargetCoords(defaultCenter)}>
-            Reset View
+          <button
+            className={`filter-btn-text ${selectedRisk === 'CRITICAL' ? 'active' : ''}`}
+            onClick={() => setSelectedRisk('CRITICAL')}
+          >
+            Critical Only
+          </button>
+          <button
+            className={`filter-btn-text ${selectedRisk === 'HIGH' ? 'active' : ''}`}
+            onClick={() => setSelectedRisk('HIGH')}
+          >
+            High Risk
+          </button>
+          <button
+            className={`filter-btn-text ${selectedRisk === 'MODERATE' ? 'active' : ''}`}
+            onClick={() => setSelectedRisk('MODERATE')}
+          >
+            Moderate
+          </button>
+
+          <button
+            className="btn-outline-small"
+            onClick={() => setTriggerFitAll((v) => v + 1)}
+            title="Reset Map Zoom to all clusters"
+          >
+            <RotateCcw size={12} />
+            <span>Fit All</span>
           </button>
         </div>
       </div>
@@ -154,7 +167,36 @@ export const GISExplorerPage = ({
       {/* Full Layout */}
       <div className="gis-full-layout">
         {/* Map Viewport */}
-        <div className="gis-map-viewport">
+        <div className="gis-map-viewport" style={{ position: 'relative' }}>
+          {/* Floating Basemap Selector */}
+          <MapLayerControl
+            activeLayer={layerType}
+            onSelectLayer={setLayerType}
+            isDark={isDark}
+          />
+
+          {/* Floating Map Legend */}
+          <div className="map-legend-float">
+            <div className="map-legend-title">Thermal Sensor Legend</div>
+            <div className="map-legend-items">
+              <span className="map-legend-item">
+                <span className="legend-dot" style={{ background: '#EF4444' }} /> Critical (&ge;75)
+              </span>
+              <span className="map-legend-item">
+                <span className="legend-dot" style={{ background: '#F97316' }} /> High (50-75)
+              </span>
+              <span className="map-legend-item">
+                <span className="legend-dot" style={{ background: '#F59E0B' }} /> Moderate (25-50)
+              </span>
+              <span className="map-legend-item">
+                <span className="legend-dot" style={{ background: '#10B981' }} /> Routine (&lt;25)
+              </span>
+              <span className="map-legend-item">
+                <span className="legend-poly-box" /> Industrial Perimeter
+              </span>
+            </div>
+          </div>
+
           <MapContainer
             center={defaultCenter}
             zoom={defaultZoom}
@@ -167,22 +209,35 @@ export const GISExplorerPage = ({
               clusters={filteredClusters}
             />
 
+            {/* Base Map Tiles */}
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              maxZoom={18}
+              key={`base-${layerType}`}
+              attribution={activeProvider.attribution}
+              url={activeProvider.base}
+              maxZoom={activeProvider.maxZoom || 18}
             />
+
+            {/* Optional Reference Labels Layer */}
+            {activeProvider.labels && (
+              <TileLayer
+                key={`labels-${layerType}`}
+                attribution=""
+                url={activeProvider.labels}
+                maxZoom={activeProvider.maxZoom || 18}
+              />
+            )}
 
             {/* Industrial Polygons Layer */}
             {showPolygons && industrialPolygons && (
               <GeoJSON
+                key={`poly-${industrialPolygons.features?.length || 0}-${isDark ? 'dark' : 'light'}`}
                 data={industrialPolygons}
                 style={{
-                  color: '#175CD3',
-                  weight: 1,
-                  fillColor: '#175CD3',
-                  fillOpacity: 0.08,
-                  dashArray: '3, 3'
+                  color: isDark ? '#00E5FF' : '#175CD3',
+                  weight: 1.5,
+                  fillColor: isDark ? '#00E5FF' : '#175CD3',
+                  fillOpacity: isDark ? 0.12 : 0.09,
+                  dashArray: '4, 4'
                 }}
                 onEachFeature={(feature, layer) => {
                   const props = feature.properties || {};
@@ -203,7 +258,7 @@ export const GISExplorerPage = ({
                   pathOptions={{
                     fillColor: rColor,
                     fillOpacity: 0.8,
-                    color: '#FFFFFF',
+                    color: isDark ? '#161B22' : '#FFFFFF',
                     weight: 1
                   }}
                 >
@@ -234,7 +289,7 @@ export const GISExplorerPage = ({
                   pathOptions={{
                     fillColor: rColor,
                     fillOpacity: 0.9,
-                    color: isSelected ? '#111111' : '#FFFFFF',
+                    color: isSelected ? (isDark ? '#F0F4F8' : '#111111') : (isDark ? '#161B22' : '#FFFFFF'),
                     weight: isSelected ? 2.5 : 1.5
                   }}
                   eventHandlers={{
@@ -248,13 +303,10 @@ export const GISExplorerPage = ({
                       <span className="font-mono text-muted" style={{ fontSize: '0.72rem' }}>{cluster.spatial_context}</span>
                       <div style={{ marginTop: '0.4rem' }}>
                         <button 
+                          className="btn-black-primary"
                           style={{
-                            background: '#111111',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            padding: '0.25rem 0.5rem',
+                            padding: '0.28rem 0.6rem',
                             borderRadius: '3px',
-                            cursor: 'pointer',
                             fontSize: '0.74rem',
                             fontWeight: 600
                           }}
@@ -341,6 +393,51 @@ export const GISExplorerPage = ({
                   <span className="text-muted">Detection Status:</span>
                   <span className="pill-badge pill-neutral font-mono">DETECTED</span>
                 </div>
+
+                {selectedCluster.weather_context && (
+                  <div className="sidebar-row">
+                    <span className="text-muted">Atmospheric Weather:</span>
+                    <span className="font-mono" style={{ fontSize: '0.8rem' }}>
+                      {selectedCluster.weather_context.wind_speed_kmh?.toFixed(0)} km/h {selectedCluster.weather_context.wind_cardinal} &bull; {selectedCluster.weather_context.temperature_c?.toFixed(0)}°C ({selectedCluster.weather_context.observation_confidence} Conf)
+                    </span>
+                  </div>
+                )}
+
+                {selectedCluster.exposure_context && (
+                  <div className="sidebar-row">
+                    <span className="text-muted">Exposure Impact:</span>
+                    <span className="font-mono" style={{ fontSize: '0.8rem' }}>
+                      Pop: <strong className={selectedCluster.exposure_context.population_exposure === 'HIGH' ? 'text-critical' : ''}>{selectedCluster.exposure_context.population_exposure}</strong> &bull; Downwind: <strong className={selectedCluster.exposure_context.downwind_exposure === 'HIGH' ? 'text-critical' : ''}>{selectedCluster.exposure_context.downwind_exposure}</strong>
+                    </span>
+                  </div>
+                )}
+
+                {selectedCluster.facility_fingerprint && selectedCluster.facility_fingerprint.thermal_status && (
+                  <div className="sidebar-row">
+                    <span className="text-muted">Thermal Baseline:</span>
+                    <span className="font-mono" style={{ fontSize: '0.8rem' }}>
+                      <strong className={
+                        selectedCluster.facility_fingerprint.thermal_status === 'CRITICAL' ? 'text-critical' : 
+                        selectedCluster.facility_fingerprint.thermal_status === 'ABNORMAL' ? 'text-warning' : ''
+                      }>
+                        {selectedCluster.facility_fingerprint.thermal_status}
+                      </strong> ({selectedCluster.facility_fingerprint.anomaly_ratio}x Baseline)
+                    </span>
+                  </div>
+                )}
+
+                {selectedCluster.abnormality_detection && selectedCluster.abnormality_detection.abnormality_status && (
+                  <div className="sidebar-row">
+                    <span className="text-muted">Abnormality Status:</span>
+                    <span className={`status-indicator-tag ${
+                      selectedCluster.abnormality_detection.abnormality_status === 'SEVERELY_ABNORMAL' ? 'critical' :
+                      selectedCluster.abnormality_detection.abnormality_status === 'ABNORMAL' ? 'high' :
+                      selectedCluster.abnormality_detection.abnormality_status === 'ELEVATED' ? 'warning' : 'success'
+                    }`} style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem' }}>
+                      {selectedCluster.abnormality_detection.abnormality_status.replace('_', ' ')} ({selectedCluster.abnormality_detection.abnormality_score?.toFixed(0)}/100)
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button 

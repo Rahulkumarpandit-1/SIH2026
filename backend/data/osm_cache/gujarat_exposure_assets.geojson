@@ -1,0 +1,367 @@
+{
+  "type": "FeatureCollection",
+  "name": "gujarat_exposure_assets",
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_001",
+        "name": "Hazira Residential Village",
+        "category": "POPULATION",
+        "sub_type": "village",
+        "criticality": "HIGH",
+        "description": "Dense coastal village and fishing settlement adjoining Hazira industrial belt"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6850, 21.1780] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_002",
+        "name": "Mora Industrial Colony",
+        "category": "POPULATION",
+        "sub_type": "residential_colony",
+        "criticality": "HIGH",
+        "description": "Worker residential township and community housing near AMNS and Reliance gates"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6980, 21.1620] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_003",
+        "name": "Ichhapore Town",
+        "category": "POPULATION",
+        "sub_type": "town",
+        "criticality": "HIGH",
+        "description": "Major urban agglomeration center on Hazira access road"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.7450, 21.1610] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_004",
+        "name": "Kawas Village Settlement",
+        "category": "POPULATION",
+        "sub_type": "village",
+        "criticality": "MEDIUM",
+        "description": "Semi-rural community settlement east of Kawas power corridor"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.7200, 21.1850] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_005",
+        "name": "Dahej Port Settlement",
+        "category": "POPULATION",
+        "sub_type": "village",
+        "criticality": "HIGH",
+        "description": "Coastal village adjacent to PCPIR chemical hub"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.5850, 21.7100] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_006",
+        "name": "Jageshwar Village",
+        "category": "POPULATION",
+        "sub_type": "village",
+        "criticality": "MEDIUM",
+        "description": "Residential settlement north of Dahej PCPIR boundary"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.5600, 21.7350] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_007",
+        "name": "Motikhavdi Township",
+        "category": "POPULATION",
+        "sub_type": "residential_township",
+        "criticality": "HIGH",
+        "description": "Township serving Reliance Jamnagar refining complex"
+      },
+      "geometry": { "type": "Point", "coordinates": [70.0400, 22.4500] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_008",
+        "name": "Sikka Coastal Town",
+        "category": "POPULATION",
+        "sub_type": "town",
+        "criticality": "HIGH",
+        "description": "Port town near GSFC and Digvijay Cement complex"
+      },
+      "geometry": { "type": "Point", "coordinates": [69.8400, 22.4300] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_009",
+        "name": "Ankleshwar GIDC Residential Quarters",
+        "category": "POPULATION",
+        "sub_type": "residential",
+        "criticality": "HIGH",
+        "description": "Residential colony adjacent to Ankleshwar chemical corridor"
+      },
+      "geometry": { "type": "Point", "coordinates": [73.0100, 21.6250] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_010",
+        "name": "Vapi Town Residential Hub",
+        "category": "POPULATION",
+        "sub_type": "town",
+        "criticality": "HIGH",
+        "description": "Dense urban settlements bordering Vapi industrial clusters"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.9100, 20.3700] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_011",
+        "name": "Nandesari Industrial Village",
+        "category": "POPULATION",
+        "sub_type": "village",
+        "criticality": "HIGH",
+        "description": "Residential pocket in the Nandesari GIDC chemical cluster"
+      },
+      "geometry": { "type": "Point", "coordinates": [73.0900, 22.4100] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "POP_012",
+        "name": "Gandhidham Urban Settlement",
+        "category": "POPULATION",
+        "sub_type": "city",
+        "criticality": "HIGH",
+        "description": "Major urban population center near Kandla Port"
+      },
+      "geometry": { "type": "Point", "coordinates": [70.1300, 23.0750] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_001",
+        "name": "NH 53 Hazira-Surat Express Highway",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "national_highway",
+        "criticality": "HIGH",
+        "description": "Primary multi-lane arterial road connecting Hazira deep water port and plants to Surat"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.7100, 21.1650] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_002",
+        "name": "Hazira Western Freight Railway Corridor",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "railway",
+        "criticality": "HIGH",
+        "description": "Dedicated heavy freight railway line for metal, chemical, and container traffic"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6920, 21.1720] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_003",
+        "name": "NTPC Kawas Combined Cycle Gas Power Station",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "power_plant",
+        "criticality": "CRITICAL",
+        "description": "656 MW gas-fired thermal power generating facility"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.7120, 21.1820] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_004",
+        "name": "ONGC Hazira Gas Processing Terminal",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "gas_processing",
+        "criticality": "CRITICAL",
+        "description": "Strategic sour gas sweetening and LPG processing installation"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6780, 21.1450] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_005",
+        "name": "SH 6 Dahej-Bharuch Highway Corridor",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "state_highway",
+        "criticality": "HIGH",
+        "description": "Critical logistics artery linking Dahej PCPIR to NH 48"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6100, 21.7150] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_006",
+        "name": "Western Dedicated Freight Corridor (DFC)",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "freight_railway",
+        "criticality": "CRITICAL",
+        "description": "High-capacity electrified freight rail backbone"
+      },
+      "geometry": { "type": "Point", "coordinates": [73.0350, 21.6450] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_007",
+        "name": "NH 48 Golden Quadrilateral Highway",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "national_highway",
+        "criticality": "CRITICAL",
+        "description": "National lifeline highway connecting Delhi, Ahmedabad, Vadodara, Surat, and Mumbai"
+      },
+      "geometry": { "type": "Point", "coordinates": [73.0050, 21.6350] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_008",
+        "name": "Sikka Power Generating Station",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "power_plant",
+        "criticality": "HIGH",
+        "description": "500 MW thermal power plant in Jamnagar coastal strip"
+      },
+      "geometry": { "type": "Point", "coordinates": [69.8350, 22.4250] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_009",
+        "name": "Jamnagar-Dwarka Four-Lane Highway",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "national_highway",
+        "criticality": "HIGH",
+        "description": "Primary highway skirting Reliance and Nayara petrochemical boundaries"
+      },
+      "geometry": { "type": "Point", "coordinates": [70.0350, 22.4420] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "INF_010",
+        "name": "DGEN Torrent Mega Power Plant",
+        "category": "INFRASTRUCTURE",
+        "sub_type": "power_plant",
+        "criticality": "HIGH",
+        "description": "1200 MW gas-based power generation facility at Dahej"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6200, 21.6850] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_001",
+        "name": "Hazira Coastal Mangrove Reserve",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "mangrove_forest",
+        "criticality": "HIGH",
+        "description": "Ecologically sensitive mangrove forest along the Gulf of Khambhat mudflats"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6550, 21.1550] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_002",
+        "name": "Tapi River Marine Estuary",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "water_body",
+        "criticality": "HIGH",
+        "description": "Tidal estuary supporting regional fisheries and aquatic biodiversity"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6700, 21.1350] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_003",
+        "name": "Choryasi Agricultural Crop Zone",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "agricultural_land",
+        "criticality": "MEDIUM",
+        "description": "Intensive fertile agricultural farmland bordering Hazira industrial perimeter"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.7500, 21.1900] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_004",
+        "name": "Narmada River Estuary Buffer",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "water_body",
+        "criticality": "HIGH",
+        "description": "Major freshwater and estuarine ecosystem separating Dahej from Bharuch"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.6250, 21.6500] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_005",
+        "name": "Gulf of Khambhat Marine Sanctuary Buffer",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "marine_protected_area",
+        "criticality": "CRITICAL",
+        "description": "Intertidal mudflats and coastal marine conservation corridor"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.5200, 21.6900] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_006",
+        "name": "Marine National Park (Gulf of Kutch Buffer)",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "national_park",
+        "criticality": "CRITICAL",
+        "description": "Protected coral reef and mangrove sanctuary 3 km north of Jamnagar plants"
+      },
+      "geometry": { "type": "Point", "coordinates": [69.9800, 22.5200] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_007",
+        "name": "Padana Wetland Ecology Zone",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "wetland",
+        "criticality": "MEDIUM",
+        "description": "Seasonal water reservoir and bird habitat in Lalpur taluka"
+      },
+      "geometry": { "type": "Point", "coordinates": [70.0100, 22.4200] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "asset_id": "ENV_008",
+        "name": "Daman Ganga River Basin",
+        "category": "ENVIRONMENTAL",
+        "sub_type": "water_body",
+        "criticality": "HIGH",
+        "description": "Drinking water source and estuarine waterway running through Vapi"
+      },
+      "geometry": { "type": "Point", "coordinates": [72.8800, 20.3850] }
+    }
+  ]
+}

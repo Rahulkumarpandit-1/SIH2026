@@ -188,6 +188,14 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                       <span className="text-secondary" style={{ display: 'block', fontSize: '0.74rem' }}>
                         {item.spatial_context} &bull; {item.centroid_latitude?.toFixed(3)}°N, {item.centroid_longitude?.toFixed(3)}°E
                       </span>
+                      {item.abnormality_detection && item.abnormality_detection.abnormality_status && item.abnormality_detection.abnormality_status !== 'NORMAL' && (
+                        <span className={`status-indicator-tag ${
+                          item.abnormality_detection.abnormality_status === 'SEVERELY_ABNORMAL' ? 'critical' :
+                          item.abnormality_detection.abnormality_status === 'ABNORMAL' ? 'high' : 'warning'
+                        }`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', marginTop: '0.2rem', display: 'inline-block' }}>
+                          {item.abnormality_detection.abnormality_status.replace('_', ' ')}
+                        </span>
+                      )}
                     </td>
                     <td className="font-mono">{maxFrp.toFixed(1)} MW</td>
                     <td className="font-mono">

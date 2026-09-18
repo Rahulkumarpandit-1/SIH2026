@@ -1,8 +1,19 @@
-import React from 'react';
-import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Wind, CloudRain, Compass, Users, Building2, Trees, Activity, TrendingUp, Zap } from 'lucide-react';
 import { MapContainer, TileLayer, CircleMarker, GeoJSON } from 'react-leaflet';
+import { useTheme } from '../context/ThemeContext';
+import { MAP_PROVIDERS } from '../services/mapConfig';
+import MapLayerControl from '../components/MapLayerControl';
 
 export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => {
+  const { isDark } = useTheme();
+  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
+
+  useEffect(() => {
+    setLayerType(isDark ? 'dark' : 'streets');
+  }, [isDark]);
+
+  const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
   if (!incident) return null;
 
   const {
@@ -13,6 +24,9 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
     incident_classification = 'INDUSTRIAL_ANOMALY',
     subscores = {},
     telemetry = {},
+    weather_context = null,
+    exposure_context = null,
+    facility_fingerprint = null,
     nearest_facility_name = 'Industrial Facility',
     nearest_facility_type = 'Industrial Zone',
     spatial_context = 'INDUSTRIAL_PERIMETER',
@@ -34,6 +48,47 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
   const persistenceRatio = telemetry.persistence_ratio ?? 0.0;
   const activeDays = telemetry.active_days_count ?? 1;
   const isSpike = telemetry.is_anomaly_spike ?? false;
+
+  const wx = weather_context || incident.weather_context || null;
+  const windSpeed = wx?.wind_speed_kmh ?? null;
+  const windDirDeg = wx?.wind_direction_deg ?? null;
+  const windCardinal = wx?.wind_cardinal ?? 'N/A';
+  const plumeDispersion = wx?.plume_dispersion_heading ?? 'N/A';
+  const temperatureC = wx?.temperature_c ?? null;
+  const cloudCover = wx?.cloud_cover_pct ?? null;
+  const precipitationMm = wx?.precipitation_mm ?? null;
+  const obsConfidence = wx?.observation_confidence ?? 'UNKNOWN';
+  const spreadConcern = wx?.spread_concern ?? 'NORMAL_MONITORING';
+
+  const exp = exposure_context || incident.exposure_context || null;
+  const popExp = exp?.population_exposure ?? 'LOW';
+  const infraExp = exp?.infrastructure_exposure ?? 'LOW';
+  const envExp = exp?.environmental_exposure ?? 'LOW';
+  const downwindExp = exp?.downwind_exposure ?? 'LOW';
+  const expSummary = exp?.exposure_summary ?? '';
+  const nearbyAssets = exp?.nearby_assets ?? [];
+  const downwindConeGeoJson = exp?.downwind_cone_geojson ?? null;
+
+  const fp = facility_fingerprint || incident.facility_fingerprint || null;
+  const baselineFrp = fp?.baseline_frp ?? null;
+  const currentFpFrp = fp?.current_frp ?? maxFrp;
+  const anomalyRatio = fp?.anomaly_ratio ?? (baselineFrp ? (currentFpFrp / baselineFrp).toFixed(2) : null);
+  const thermalStatus = fp?.thermal_status ?? 'NORMAL';
+  const fpExplanation = fp?.explanation ?? '';
+  const maxHistFrp = fp?.max_historical_frp ?? 25.0;
+  const fpPersistenceDays = fp?.persistence_days ?? activeDays;
+  const fpFrequency = fp?.event_frequency ?? 'RECURRING_OPERATIONAL';
+  const fpSeasonality = fp?.seasonal_behavior ?? 'Consistent Year-Round Emissions';
+
+  const ab = incident.abnormality_detection || null;
+  const abScore = ab?.abnormality_score ?? null;
+  const abStatus = ab?.abnormality_status ?? 'NORMAL';
+  const abIntensity = ab?.intensity_anomaly ?? null;
+  const abPersistence = ab?.persistence_anomaly ?? null;
+  const abGrowth = ab?.growth_anomaly ?? null;
+  const abRecurrence = ab?.recurrence_anomaly ?? null;
+  const abExplanation = ab?.explanation ?? [];
+  const abNarrative = ab?.narrative ?? '';
 
   const mapCenter = [centroid_latitude, centroid_longitude];
   const isCrit = risk_level === 'CRITICAL';
@@ -142,28 +197,76 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
         </div>
 
         {/* Mini Interactive Map */}
-        <div style={{ height: '280px', border: '1px solid var(--border-divider)', borderRadius: '4px', overflow: 'hidden', marginTop: '0.5rem' }}>
+        <div style={{ height: '320px', border: '1px solid var(--border-divider)', borderRadius: '4px', overflow: 'hidden', marginTop: '0.5rem', position: 'relative' }}>
+          {/* Floating Basemap Selector */}
+          <MapLayerControl
+            activeLayer={layerType}
+            onSelectLayer={setLayerType}
+            isDark={isDark}
+          />
+
           <MapContainer
             center={mapCenter}
             zoom={13}
             style={{ width: '100%', height: '100%' }}
             scrollWheelZoom={false}
           >
+            {/* Base Map Tiles */}
             <TileLayer
-              attribution='&copy; CARTO'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              key={`base-${layerType}`}
+              attribution={activeProvider.attribution}
+              url={activeProvider.base}
+              maxZoom={activeProvider.maxZoom || 18}
             />
+
+            {/* Optional Reference Labels Layer */}
+            {activeProvider.labels && (
+              <TileLayer
+                key={`labels-${layerType}`}
+                attribution=""
+                url={activeProvider.labels}
+                maxZoom={activeProvider.maxZoom || 18}
+              />
+            )}
+
             {industrialPolygons && (
               <GeoJSON
+                key={`detail-poly-${isDark ? 'dark' : 'light'}`}
                 data={industrialPolygons}
                 style={{
-                  color: '#175CD3',
-                  weight: 1.2,
-                  fillColor: '#175CD3',
-                  fillOpacity: 0.1
+                  color: isDark ? '#00E5FF' : '#175CD3',
+                  weight: 1.5,
+                  fillColor: isDark ? '#00E5FF' : '#175CD3',
+                  fillOpacity: isDark ? 0.14 : 0.1
                 }}
               />
             )}
+            {/* Downwind Hazard Plume Cone */}
+            {downwindConeGeoJson && (
+              <GeoJSON
+                key={JSON.stringify(downwindConeGeoJson.properties || {})}
+                data={downwindConeGeoJson}
+                style={{
+                  color: '#D92D20',
+                  weight: 1.5,
+                  dashArray: '4, 4',
+                  fillColor: '#F04438',
+                  fillOpacity: 0.18
+                }}
+              />
+            )}
+            {/* 2.0 km Exposure Radius Buffer */}
+            <CircleMarker
+              center={mapCenter}
+              radius={24}
+              pathOptions={{
+                color: '#E04F16',
+                weight: 1,
+                dashArray: '3, 6',
+                fillOpacity: 0.04
+              }}
+            />
+            {/* Incident Centroid Marker */}
             <CircleMarker
               center={mapCenter}
               radius={10}
@@ -174,7 +277,40 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
                 weight: 2
               }}
             />
+            {/* Nearby Sensitive Receptor Assets */}
+            {nearbyAssets.map((asset, idx) => (
+              <CircleMarker
+                key={asset.asset_id || idx}
+                center={[asset.latitude, asset.longitude]}
+                radius={asset.is_downwind ? 7 : 5}
+                pathOptions={{
+                  fillColor: asset.is_downwind ? '#D92D20' : asset.category === 'POPULATION' ? '#7A5AF8' : asset.category === 'INFRASTRUCTURE' ? '#027A48' : '#0BA5EC',
+                  fillOpacity: 0.9,
+                  color: '#FFFFFF',
+                  weight: 1.5
+                }}
+              />
+            ))}
           </MapContainer>
+        </div>
+
+        {/* Interactive Map Visual Legend */}
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.45rem', fontSize: '0.74rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#D92D20', display: 'inline-block' }} /> Incident Centroid
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 12, height: 10, borderRadius: '2px', background: 'rgba(240, 68, 56, 0.25)', border: '1px dashed #D92D20', display: 'inline-block' }} /> Downwind Plume Sector
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7A5AF8', display: 'inline-block' }} /> Population
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#027A48', display: 'inline-block' }} /> Infrastructure
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0BA5EC', display: 'inline-block' }} /> Environmental
+          </span>
         </div>
       </section>
 
@@ -218,12 +354,144 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           <strong>Physical Interpretation:</strong> Fire Radiative Power (FRP) measures instantaneous radiative energy emitted by combustion.
           Values exceeding 50 MW indicate intense industrial thermal flux significantly above routine background emissions.
         </p>
+
+        {/* Facility Thermal Fingerprint Baseline Comparison */}
+        {fp && (
+          <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: 'var(--bg-secondary, #F8FAFC)', borderRadius: '6px', border: '1px solid var(--border-divider, #E2E8F0)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Gauge size={16} className="text-secondary" />
+                <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>
+                  Facility Thermal Fingerprint &bull; Baseline Excursion Analysis
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className={`status-indicator-tag ${
+                  thermalStatus === 'CRITICAL' ? 'critical' : thermalStatus === 'ABNORMAL' ? 'high' : thermalStatus === 'ELEVATED' ? 'warning' : 'success'
+                }`} style={{ fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}>
+                  {thermalStatus} EXCURSION ({anomalyRatio}x BASELINE)
+                </span>
+              </div>
+            </div>
+
+            {/* Comparative Visual Bars: Baseline vs Current vs Historical Max */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', margin: '0.75rem 0' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', marginBottom: '0.2rem' }}>
+                  <span className="text-muted">Facility Historical Emission Baseline</span>
+                  <span className="font-mono font-bold">{baselineFrp?.toFixed(1)} MW</span>
+                </div>
+                <div className="track-clean" style={{ height: '8px', background: 'var(--border-subtle)' }}>
+                  <div className="fill-clean" style={{ width: `${Math.min(((baselineFrp || 10) / 100) * 100, 100)}%`, background: '#64748B' }} />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', marginBottom: '0.2rem' }}>
+                  <span className="text-secondary font-bold">Observed Peak Incident FRP</span>
+                  <span className={`font-mono font-bold ${thermalStatus === 'CRITICAL' || thermalStatus === 'ABNORMAL' ? 'text-critical' : ''}`}>
+                    {currentFpFrp?.toFixed(1)} MW ({anomalyRatio}x)
+                  </span>
+                </div>
+                <div className="track-clean" style={{ height: '10px', background: 'var(--border-subtle)' }}>
+                  <div className={`fill-clean ${thermalStatus === 'CRITICAL' || thermalStatus === 'ABNORMAL' ? 'critical' : ''}`} style={{ width: `${Math.min(((currentFpFrp || 10) / 100) * 100, 100)}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Facility Historical Fingerprint Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-divider, #E2E8F0)' }}>
+              <div>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>Historical Peak</span>
+                <span className="font-mono" style={{ fontSize: '0.8rem', fontWeight: 600 }}>{maxHistFrp?.toFixed(1)} MW</span>
+              </div>
+              <div>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>Persistence Duration</span>
+                <span className="font-mono" style={{ fontSize: '0.8rem', fontWeight: 600 }}>{fpPersistenceDays} Days</span>
+              </div>
+              <div>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>Event Recurrence</span>
+                <span style={{ fontSize: '0.76rem', fontWeight: 600 }}>{fpFrequency}</span>
+              </div>
+              <div>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>Seasonal Dynamics</span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>{fpSeasonality}</span>
+              </div>
+            </div>
+
+            {fpExplanation && (
+              <p className="text-secondary" style={{ fontSize: '0.8rem', lineHeight: 1.5, margin: '0.65rem 0 0 0', fontStyle: 'italic' }}>
+                {fpExplanation}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
-      {/* SECTION C: TEMPORAL EVIDENCE */}
+      {/* SECTION 03: MULTI-DIMENSIONAL ABNORMALITY DETECTION ENGINE */}
       <section className="report-section">
-        <span className="report-section-heading">03 &bull; Temporal Persistence &amp; Anomaly Surge Evidence</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <span className="report-section-heading" style={{ marginBottom: 0 }}>
+            03 &bull; Multi-Dimensional Abnormality Detection Engine
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+              Abnormality Score: <strong className="font-mono">{abScore !== null ? abScore.toFixed(1) : (isSpike ? '85.0' : '22.5')} / 100</strong>
+            </span>
+            <span className={`status-indicator-tag ${
+              abStatus === 'SEVERELY_ABNORMAL' ? 'critical' :
+              abStatus === 'ABNORMAL' ? 'high' :
+              abStatus === 'ELEVATED' ? 'warning' : 'success'
+            }`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem' }}>
+              {abStatus.replace('_', ' ')}
+            </span>
+          </div>
+        </div>
 
+        {/* 4 Multi-Dimensional Anomaly Cards */}
+        <div className="report-data-grid" style={{ marginBottom: '1rem' }}>
+          <div className="report-data-item" style={{ borderLeft: '3px solid #D92D20' }}>
+            <span className="report-data-label">1. Intensity Anomaly</span>
+            <span className="report-data-val font-mono">
+              {abIntensity?.ratio ? `${abIntensity.ratio}x Baseline` : `${(currentFpFrp / (baselineFrp || 12)).toFixed(2)}x Baseline`}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              {abIntensity?.current_frp ?? currentFpFrp.toFixed(1)} MW vs {abIntensity?.baseline_frp ?? (baselineFrp || 12).toFixed(1)} MW ({abIntensity?.status ?? thermalStatus})
+            </span>
+          </div>
+
+          <div className="report-data-item" style={{ borderLeft: '3px solid #F79009' }}>
+            <span className="report-data-label">2. Persistence Anomaly</span>
+            <span className="report-data-val font-mono">
+              {abPersistence ? `+${abPersistence.excess_percentage.toFixed(0)}% Duration` : (activeDays > 1 ? `+${(activeDays - 1) * 100}% Duration` : 'Normal Baseline')}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              {abPersistence?.current_duration_days ?? activeDays} Days Active vs {abPersistence?.expected_duration_days ?? 1} Day Normal ({abPersistence?.status ?? (activeDays > 2 ? 'ELEVATED' : 'NORMAL')})
+            </span>
+          </div>
+
+          <div className="report-data-item" style={{ borderLeft: '3px solid #7A5AF8' }}>
+            <span className="report-data-label">3. Growth Anomaly</span>
+            <span className="report-data-val font-mono">
+              {abGrowth?.trend ?? (isSpike ? 'ACCELERATING' : 'STABLE')}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              +{abGrowth?.growth_rate_pct?.toFixed(0) ?? (maxFrp > avgFrp ? (((maxFrp - avgFrp) / Math.max(avgFrp, 1)) * 100).toFixed(0) : '0')}% Peak Surge ({abGrowth?.status ?? (isSpike ? 'ABNORMAL' : 'NORMAL')})
+            </span>
+          </div>
+
+          <div className="report-data-item" style={{ borderLeft: '3px solid #0BA5EC' }}>
+            <span className="report-data-label">4. Recurrence Anomaly</span>
+            <span className="report-data-val font-mono">
+              {abRecurrence?.status ?? (totalDetections > 4 ? 'ABNORMAL' : 'NORMAL')}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              {abRecurrence?.observed_frequency ?? totalDetections} Events vs {abRecurrence?.baseline_frequency ?? 3} Monthly Baseline
+            </span>
+          </div>
+        </div>
+
+        {/* Underlying Persistence & Flaring Discount Matrix */}
         <div className="report-data-grid">
           <div className="report-data-item">
             <span className="report-data-label">Active Detection Days</span>
@@ -236,16 +504,9 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           </div>
 
           <div className="report-data-item">
-            <span className="report-data-label">Anomaly Surge Flag</span>
+            <span className="report-data-label">Acute Anomaly Surge</span>
             <span className={`report-data-val ${isSpike ? 'text-critical' : ''}`}>
               {isSpike ? 'YES (UNPRECEDENTED SPIKE)' : 'NORMAL BASELINE'}
-            </span>
-          </div>
-
-          <div className="report-data-item">
-            <span className="report-data-label">Temporal Behavior</span>
-            <span className="report-data-val">
-              {persistenceRatio >= 0.5 ? 'Continuous Multi-Day Flare' : isSpike ? 'Acute Sudden Outbreak' : 'Transient Thermal Hotspot'}
             </span>
           </div>
 
@@ -255,21 +516,305 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
               {persistenceRatio >= 0.5 ? 'APPLIED (Suppresses Alarm)' : 'NOT APPLIED'}
             </span>
           </div>
+        </div>
 
-          <div className="report-data-item">
-            <span className="report-data-label">Persistence Subscore</span>
-            <span className="report-data-val font-mono">{persSub.toFixed(2)} pts</span>
+        {/* Explainable Abnormality Diagnostic Panel */}
+        <div style={{ marginTop: '0.85rem', padding: '0.85rem 1rem', background: 'var(--bg-secondary, #F8FAFC)', borderRadius: '6px', border: '1px solid var(--border-divider, #E2E8F0)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
+            <Activity size={16} className="text-secondary" />
+            <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Explainable Operational Abnormality Assessment</span>
+          </div>
+
+          {/* Itemized Reasons List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', margin: '0.5rem 0 0.65rem 0' }}>
+            {abExplanation && abExplanation.length > 0 ? (
+              abExplanation.map((reason, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: abStatus === 'SEVERELY_ABNORMAL' ? '#D92D20' : '#F79009' }} />
+                  <span className="font-medium">{reason}</span>
+                </div>
+              ))
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D92D20' }} />
+                  <span className="font-medium">FRP is {(currentFpFrp / (baselineFrp || 12)).toFixed(1)}x above baseline</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F79009' }} />
+                  <span className="font-medium">Event duration {activeDays > 1 ? `exceeds normal by ${(activeDays - 1) * 100}%` : 'within normal baseline'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7A5AF8' }} />
+                  <span className="font-medium">Thermal growth {isSpike ? 'accelerating rapidly' : 'stable'}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0BA5EC' }} />
+                  <span className="font-medium">Recurrence {totalDetections > 4 ? 'exceeds monthly average' : 'within monthly baseline'}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <p className="text-secondary" style={{ fontSize: '0.8rem', lineHeight: 1.5, margin: 0, borderTop: '1px solid var(--border-divider, #E2E8F0)', paddingTop: '0.5rem', fontStyle: 'italic' }}>
+            {abNarrative || (
+              abStatus === 'SEVERELY_ABNORMAL' || isSpike
+                ? `CRITICAL ABNORMALITY: Incident exhibits unprecedented radiative surge (${(currentFpFrp / (baselineFrp || 12)).toFixed(1)}x baseline) with explosive thermal growth. Duration and recurrence patterns significantly deviate from routine operational flaring.`
+                : `Thermal activity is within expected historical flaring and seasonal operational tolerances for ${nearest_facility_name}.`
+            )}
+          </p>
+        </div>
+      </section>
+
+      {/* SECTION D: WEATHER CONTEXT & ATMOSPHERIC DISPERSION */}
+      <section className="report-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <span className="report-section-heading" style={{ marginBottom: 0 }}>
+            04 &bull; Real-Time Weather Context &amp; Atmospheric Dispersion
+          </span>
+          {wx && (
+            <span className={`status-indicator-tag ${
+              obsConfidence === 'HIGH' ? 'success' : obsConfidence === 'MEDIUM' ? 'warning' : 'critical'
+            }`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
+              Optical Observation Confidence: {obsConfidence}
+            </span>
+          )}
+        </div>
+
+        {wx ? (
+          <>
+            <div className="report-data-grid">
+              <div className="report-data-item">
+                <span className="report-data-label">Wind Velocity (10m)</span>
+                <span className="report-data-val font-mono">
+                  {windSpeed !== null ? `${windSpeed.toFixed(1)} km/h` : 'N/A'}
+                </span>
+              </div>
+
+              <div className="report-data-item">
+                <span className="report-data-label">Wind Direction</span>
+                <span className="report-data-val font-mono">
+                  {windDirDeg !== null ? `${windDirDeg}° (${windCardinal})` : 'N/A'}
+                </span>
+              </div>
+
+              <div className="report-data-item">
+                <span className="report-data-label">Downwind Dispersion Heading</span>
+                <span className="report-data-val font-mono text-warning font-bold">
+                  {plumeDispersion}
+                </span>
+              </div>
+
+              <div className="report-data-item">
+                <span className="report-data-label">Ambient Temperature (2m)</span>
+                <span className="report-data-val font-mono">
+                  {temperatureC !== null ? `${temperatureC.toFixed(1)} °C` : 'N/A'}
+                </span>
+              </div>
+
+              <div className="report-data-item">
+                <span className="report-data-label">Cloud Cover Fraction</span>
+                <span className="report-data-val font-mono">
+                  {cloudCover !== null ? `${cloudCover}%` : 'N/A'}
+                </span>
+              </div>
+
+              <div className="report-data-item">
+                <span className="report-data-label">Precipitation Rate</span>
+                <span className={`report-data-val font-mono ${precipitationMm > 0 ? 'text-info' : ''}`}>
+                  {precipitationMm !== null ? `${precipitationMm.toFixed(1)} mm/h` : '0.0 mm/h'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'var(--bg-secondary, #F8FAFC)', borderRadius: '6px', border: '1px solid var(--border-divider, #E2E8F0)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <Wind size={16} className="text-secondary" />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Plume Dispersion &amp; Fire Propagation Assessment</span>
+              </div>
+              <p className="text-secondary" style={{ fontSize: '0.82rem', lineHeight: 1.5, margin: 0 }}>
+                {spreadConcern === 'PRECIPITATION_SUPPRESSION'
+                  ? 'Active precipitation detected (> 0.5 mm/h). Atmospheric moisture actively suppresses ember propagation and reduces thermal runaway risk.'
+                  : spreadConcern === 'CRITICAL_WIND_DRIVEN_SPREAD'
+                  ? `High wind velocity (${windSpeed?.toFixed(1)} km/h) detected. Extreme risk of rapid downwind toxic plume and flame propagation towards ${plumeDispersion}.`
+                  : spreadConcern === 'ELEVATED_SPREAD_POTENTIAL'
+                  ? `Moderate wind velocity (${windSpeed?.toFixed(1)} km/h) detected. Enhanced risk of fire extension along downwind axis towards ${plumeDispersion}.`
+                  : 'Low wind conditions (< 20 km/h) and dry conditions. Minimal wind-driven flame propagation; localized plume stagnation likely.'}
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.78rem', flexWrap: 'wrap' }}>
+                <span className="text-muted">Cloud Attenuation: <strong>{cloudCover <= 30 ? 'Minimal (Clear Sky)' : cloudCover <= 70 ? 'Moderate (Partial Haze/Cloud)' : 'High (Dense Obscuration)'}</strong></span>
+                <span className="text-muted">&bull;</span>
+                <span className="text-muted">Observation Confidence: <strong>{obsConfidence}</strong> ({cloudCover <= 30 ? '0-30% Cloud' : cloudCover <= 70 ? '31-70% Cloud' : '71-100% Cloud'})</span>
+                <span className="text-muted">&bull;</span>
+                <span className="text-muted">Data Source: <strong>Open-Meteo Atmospheric Model (15m Cache)</strong></span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-muted" style={{ padding: '1rem 0', fontSize: '0.85rem' }}>
+            Atmospheric weather context is currently unavailable or coordinates are outside coverage area.
+          </div>
+        )}
+      </section>
+
+      {/* SECTION E: EXPOSURE ANALYSIS & POTENTIAL IMPACT ZONE */}
+      <section className="report-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <span className="report-section-heading" style={{ marginBottom: 0 }}>
+            05 &bull; Geospatial Exposure Analysis &amp; Potential Consequence Zone
+          </span>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span className={`status-indicator-tag ${
+              downwindExp === 'HIGH' ? 'critical' : downwindExp === 'MEDIUM' ? 'warning' : 'success'
+            }`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>
+              Downwind Plume Hazard: {downwindExp}
+            </span>
           </div>
         </div>
 
-        <p className="text-secondary" style={{ fontSize: '0.85rem', lineHeight: 1.55 }}>
-          <strong>Temporal Persistence Rationale:</strong> Routine petrochemical refinery flares burn continuously day-after-day (Pratio &ge; 0.5) and receive an operational discount to suppress false alerts. Sudden unprecedented thermal events trigger an anomaly surge penalty.
-        </p>
+        <div className="report-data-grid">
+          <div className="report-data-item">
+            <span className="report-data-label">Population Settlement Exposure</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+              <span className={`status-indicator-tag ${
+                popExp === 'HIGH' ? 'critical' : popExp === 'MEDIUM' ? 'warning' : 'success'
+              }`}>
+                {popExp} EXPOSURE
+              </span>
+            </div>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Critical Infrastructure Exposure</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+              <span className={`status-indicator-tag ${
+                infraExp === 'HIGH' ? 'critical' : infraExp === 'MEDIUM' ? 'warning' : 'success'
+              }`}>
+                {infraExp} EXPOSURE
+              </span>
+            </div>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Environmental &amp; Ecological Exposure</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+              <span className={`status-indicator-tag ${
+                envExp === 'HIGH' ? 'critical' : envExp === 'MEDIUM' ? 'warning' : 'success'
+              }`}>
+                {envExp} EXPOSURE
+              </span>
+            </div>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Atmospheric Downwind Sector</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+              <span className={`status-indicator-tag ${
+                downwindExp === 'HIGH' ? 'critical' : downwindExp === 'MEDIUM' ? 'warning' : 'success'
+              }`}>
+                {downwindExp} SECTOR
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Explainable Risk Impact Narrative */}
+        {expSummary && (
+          <div style={{ 
+            marginTop: '0.75rem', 
+            padding: '0.75rem 1rem', 
+            background: downwindExp === 'HIGH' ? 'rgba(217, 45, 32, 0.05)' : 'var(--bg-secondary, #F8FAFC)', 
+            borderRadius: '6px', 
+            border: downwindExp === 'HIGH' ? '1px solid rgba(217, 45, 32, 0.25)' : '1px solid var(--border-divider, #E2E8F0)' 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <ShieldAlert size={16} className={downwindExp === 'HIGH' ? 'text-critical' : 'text-secondary'} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                Explainable Risk Consequence Narrative
+              </span>
+            </div>
+            <p className="text-secondary" style={{ fontSize: '0.82rem', lineHeight: 1.55, margin: 0 }}>
+              {expSummary}
+            </p>
+          </div>
+        )}
+
+        {/* Nearby & Downwind Receptor Assets Table */}
+        <div style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+              Identified Assets in Incident Hazard Buffer ({nearbyAssets.length})
+            </span>
+          </div>
+
+          {nearbyAssets.length > 0 ? (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border-divider, #E2E8F0)', borderRadius: '6px' }}>
+              <table className="data-table-clean" style={{ width: '100%', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary, #F8FAFC)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.5rem 0.75rem' }}>Asset Name</th>
+                    <th style={{ padding: '0.5rem 0.75rem' }}>Domain</th>
+                    <th style={{ padding: '0.5rem 0.75rem' }}>Distance</th>
+                    <th style={{ padding: '0.5rem 0.75rem' }}>Bearing / Axis</th>
+                    <th style={{ padding: '0.5rem 0.75rem' }}>Plume Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nearbyAssets.map((asset, idx) => (
+                    <tr key={asset.asset_id || idx} style={{ borderTop: '1px solid var(--border-divider, #E2E8F0)' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>
+                        {asset.name}
+                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                          {asset.sub_type?.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>
+                        <span style={{ 
+                          fontSize: '0.72rem', 
+                          fontWeight: 600,
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: '4px',
+                          background: asset.category === 'POPULATION' ? 'rgba(122, 90, 248, 0.1)' : asset.category === 'INFRASTRUCTURE' ? 'rgba(2, 122, 72, 0.1)' : 'rgba(11, 165, 236, 0.1)',
+                          color: asset.category === 'POPULATION' ? '#6938EF' : asset.category === 'INFRASTRUCTURE' ? '#027A48' : '#0BA5EC'
+                        }}>
+                          {asset.category}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem' }} className="font-mono">
+                        {asset.distance_km < 1.0 
+                          ? `${(asset.distance_km * 1000).toFixed(0)} m`
+                          : `${asset.distance_km.toFixed(2)} km`}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem' }} className="font-mono text-secondary">
+                        {asset.cardinal_direction} ({asset.bearing_deg.toFixed(0)}°)
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>
+                        {asset.is_downwind ? (
+                          <span className="status-indicator-tag critical" style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}>
+                            DOWNWIND HAZARD
+                          </span>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: '0.74rem' }}>
+                            Lateral / Upwind
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-muted" style={{ fontSize: '0.82rem', margin: '0.5rem 0' }}>
+              No documented sensitive receptors within 12 km search radius.
+            </p>
+          )}
+        </div>
       </section>
 
-      {/* SECTION D: RISK ENGINE CALCULATION */}
+      {/* SECTION F: RISK ENGINE CALCULATION */}
       <section className="report-section">
-        <span className="report-section-heading">04 &bull; Multi-Signal Risk Score Math (Phase 4 Deterministic Engine)</span>
+        <span className="report-section-heading">06 &bull; Multi-Signal Risk Score Math (Phase 4 Deterministic Engine)</span>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <div className="bar-row-clean">
@@ -310,9 +855,9 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
         </div>
       </section>
 
-      {/* SECTION E: OPERATIONAL DIRECTIVE */}
+      {/* SECTION G: OPERATIONAL DIRECTIVE */}
       <section className="report-section">
-        <span className="report-section-heading">05 &bull; Operational Recommendation</span>
+        <span className="report-section-heading">07 &bull; Operational Recommendation</span>
 
         <div className="report-action-box">
           <div>
@@ -334,9 +879,9 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
         </div>
       </section>
 
-      {/* SECTION F: SCIENTIFIC DISCLAIMER */}
+      {/* SECTION H: SCIENTIFIC DISCLAIMER */}
       <section className="report-section" style={{ borderBottom: 'none' }}>
-        <span className="report-section-heading">06 &bull; Scientific Disclaimer &amp; Verification Protocol</span>
+        <span className="report-section-heading">08 &bull; Scientific Disclaimer &amp; Verification Protocol</span>
         
         <div className="alert-callout-neutral">
           <div className="callout-icon text-muted"><HelpCircle size={22} /></div>

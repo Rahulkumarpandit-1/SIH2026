@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, CircleMarker, Tooltip } from 'react-leaflet';
-import L from 'leaflet';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Popup, useMap, CircleMarker, Tooltip } from 'react-leaflet';
+import { useTheme } from '../context/ThemeContext';
+import { MAP_PROVIDERS } from '../services/mapConfig';
+import MapLayerControl from './MapLayerControl';
 
 // Helper component to smoothly animate/focus the map when selected cluster changes
 const MapFocusController = ({ targetCoords }) => {
@@ -16,16 +18,58 @@ const MapFocusController = ({ targetCoords }) => {
   return null;
 };
 
+export const getRiskColor = (level, score) => {
+  const normalized = String(level || '').toUpperCase();
+  if (normalized === 'CRITICAL' || (score !== undefined && score >= 75)) return '#EF4444'; // Vibrant Red
+  if (normalized === 'HIGH' || (score !== undefined && score >= 50)) return '#F97316';     // Safety Orange
+  if (normalized === 'MODERATE' || (score !== undefined && score >= 25)) return '#F59E0B'; // Amber Gold
+  return '#10B981';                                                                        // Emerald Green
+};
+
 export const GISMapView = ({
   observations = [],
   clusters = [],
+  riskData = [],
   industrialPolygons = null,
   selectedCluster,
   onSelectCluster,
   onSelectObservation
 }) => {
+  const { isDark } = useTheme();
+  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
+
+  // Sync default layer when global theme changes
+  useEffect(() => {
+    setLayerType(isDark ? 'dark' : 'streets');
+  }, [isDark]);
+
+  const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
   const defaultCenter = [22.2587, 71.1924];
   const defaultZoom = 7;
+
+  // Enrich clusters with deterministic risk scores and levels
+  const enrichedClusters = useMemo(() => {
+    const riskMap = new Map((riskData || []).map((r) => [r.cluster_id, r]));
+    return (clusters || []).map((cluster) => {
+      const risk = riskMap.get(cluster.cluster_id);
+      const risk_score = risk?.risk_score ?? cluster.risk_score ?? 0;
+      let risk_level = risk?.risk_level ?? cluster.risk_level;
+      if (!risk_level) {
+        if (risk_score >= 75) risk_level = 'CRITICAL';
+        else if (risk_score >= 50) risk_level = 'HIGH';
+        else if (risk_score >= 25) risk_level = 'MODERATE';
+        else risk_level = 'LOW';
+      }
+      return {
+        ...cluster,
+        risk_score,
+        risk_level,
+        action_code: risk?.action_code ?? cluster.action_code ?? 'ROUTINE_MONITORING',
+        incident_classification: risk?.incident_classification ?? cluster.incident_classification,
+        nearest_facility_name: risk?.nearest_facility_name || cluster.nearest_facility_name || 'Industrial Facility'
+      };
+    });
+  }, [clusters, riskData]);
 
   const targetCoords = useMemo(() => {
     if (selectedCluster?.centroid_latitude && selectedCluster?.centroid_longitude) {
@@ -35,35 +79,58 @@ export const GISMapView = ({
   }, [selectedCluster]);
 
   const polygonStyle = {
-    color: '#175CD3',
-    weight: 1,
-    opacity: 0.7,
-    fillColor: '#175CD3',
-    fillOpacity: 0.08,
-    dashArray: '3, 3'
+    color: isDark ? '#00E5FF' : '#175CD3',
+    weight: 1.5,
+    opacity: 0.85,
+    fillColor: isDark ? '#00E5FF' : '#175CD3',
+    fillOpacity: isDark ? 0.12 : 0.09,
+    dashArray: '4, 4'
   };
 
   const onEachPolygon = (feature, layer) => {
-    if (feature.properties) {
-      const name = feature.properties.name || 'Industrial Facility';
-      const type = feature.properties.industrial || feature.properties.landuse || 'Industrial Zone';
-      layer.bindTooltip(`<strong>${name}</strong><br/>${type}`, {
-        sticky: true
-      });
-    }
-  };
+    const props = feature.properties || {};
+    const name = props.name || props['name:en'] || 'Industrial Facility';
+    const fType = props.landuse || props.industrial || 'industrial zone';
 
-  const getRiskColor = (level) => {
-    switch (level) {
-      case 'CRITICAL': return '#D92D20';
-      case 'HIGH': return '#B7791F';
-      case 'MODERATE': return '#B7791F';
-      default: return '#287A4B';
-    }
+    layer.bindTooltip(`
+      <div style="font-family: inherit; font-size: 0.76rem; padding: 3px;">
+        <strong style="color: ${isDark ? '#38BDF8' : '#175CD3'}">${name}</strong><br/>
+        <span style="opacity: 0.75; text-transform: uppercase; font-size: 0.68rem;">${fType}</span>
+      </div>
+    `, { sticky: true });
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div className="gis-map-viewport" style={{ width: '100%', height: '100%', minHeight: '480px', position: 'relative' }}>
+      {/* Floating Basemap Selector */}
+      <MapLayerControl
+        activeLayer={layerType}
+        onSelectLayer={setLayerType}
+        isDark={isDark}
+      />
+
+      {/* Floating Map Legend */}
+      <div className="map-legend-float">
+        <div className="map-legend-title">Thermal Intelligence Legend</div>
+        <div className="map-legend-items">
+          <span className="map-legend-item">
+            <span className="legend-dot" style={{ background: '#EF4444' }} /> Critical (&ge;75)
+          </span>
+          <span className="map-legend-item">
+            <span className="legend-dot" style={{ background: '#F97316' }} /> High (50-75)
+          </span>
+          <span className="map-legend-item">
+            <span className="legend-dot" style={{ background: '#F59E0B' }} /> Moderate (25-50)
+          </span>
+          <span className="map-legend-item">
+            <span className="legend-dot" style={{ background: '#10B981' }} /> Routine (&lt;25)
+          </span>
+          <span className="map-legend-item">
+            <span className="legend-poly-box" /> Industrial Perimeter
+          </span>
+        </div>
+      </div>
+
       <MapContainer
         center={defaultCenter}
         zoom={defaultZoom}
@@ -72,92 +139,137 @@ export const GISMapView = ({
       >
         <MapFocusController targetCoords={targetCoords} />
 
+        {/* Base Map Tiles */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          maxZoom={18}
+          key={`base-${layerType}`}
+          attribution={activeProvider.attribution}
+          url={activeProvider.base}
+          maxZoom={activeProvider.maxZoom || 18}
         />
+
+        {/* Optional Reference Labels Layer */}
+        {activeProvider.labels && (
+          <TileLayer
+            key={`labels-${layerType}`}
+            attribution=""
+            url={activeProvider.labels}
+            maxZoom={activeProvider.maxZoom || 18}
+          />
+        )}
 
         {/* Industrial Polygons */}
         {industrialPolygons && industrialPolygons.features && industrialPolygons.features.length > 0 && (
           <GeoJSON
-            key={industrialPolygons.features.length}
+            key={`poly-${industrialPolygons.features.length}-${isDark ? 'dark' : 'light'}`}
             data={industrialPolygons}
             style={polygonStyle}
             onEachFeature={onEachPolygon}
           />
         )}
 
-        {/* Hotspot observations */}
-        {observations.slice(0, 150).map((obs) => (
-          <CircleMarker
-            key={`map-obs-${obs.observation_id}`}
-            center={[obs.latitude, obs.longitude]}
-            radius={4}
-            pathOptions={{
-              fillColor: getRiskColor(obs.risk_level),
-              fillOpacity: 0.75,
-              color: '#FFFFFF',
-              weight: 1
-            }}
-          >
-            <Tooltip sticky>
-              <div style={{ fontSize: '0.78rem' }}>
-                Obs #{obs.observation_id} &bull; {obs.frp} MW<br />
-                {obs.nearest_facility_name}
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        ))}
-
-        {/* Physical Clusters */}
-        {clusters.map((cluster) => {
-          const isCrit = cluster.risk_level === 'CRITICAL';
-          const rColor = getRiskColor(cluster.risk_level);
-          const isSelected = selectedCluster?.cluster_id === cluster.cluster_id;
-
+        {/* Hotspot observations (raw sensor pixels) */}
+        {observations.slice(0, 150).map((obs) => {
+          const obsColor = getRiskColor(obs.risk_level, obs.risk_score);
           return (
             <CircleMarker
-              key={`map-cluster-${cluster.cluster_id}`}
-              center={[cluster.centroid_latitude, cluster.centroid_longitude]}
-              radius={isCrit ? 12 : 8}
+              key={`map-obs-${obs.observation_id}`}
+              center={[obs.latitude, obs.longitude]}
+              radius={3.5}
               pathOptions={{
-                fillColor: rColor,
-                fillOpacity: 0.9,
-                color: isSelected ? '#111111' : '#FFFFFF',
-                weight: isSelected ? 2.5 : 1.5
-              }}
-              eventHandlers={{
-                click: () => onSelectCluster(cluster)
+                fillColor: obsColor,
+                fillOpacity: 0.75,
+                color: isDark ? '#0D1117' : '#FFFFFF',
+                weight: 0.8
               }}
             >
-              <Popup>
-                <div style={{ fontSize: '0.8rem', lineHeight: '1.45', padding: '2px' }}>
-                  <strong>{cluster.cluster_id}</strong> &bull; {(cluster.risk_score ?? 0).toFixed(1)}/100<br />
-                  <span>{cluster.nearest_facility_name || 'Industrial Facility'}</span><br />
-                  <span className="font-mono text-muted" style={{ fontSize: '0.72rem' }}>
-                    {cluster.spatial_context} &bull; Max FRP: {(cluster.max_frp ?? 0).toFixed(1)} MW
-                  </span>
-                  <div style={{ marginTop: '0.4rem' }}>
-                    <button 
-                      style={{
-                        background: '#111111',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                        fontSize: '0.74rem',
-                        fontWeight: 600
-                      }}
-                      onClick={() => onSelectCluster(cluster)}
-                    >
-                      Inspect Cluster &rarr;
-                    </button>
-                  </div>
+              <Tooltip sticky>
+                <div style={{ fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  <strong>Obs #{obs.observation_id}</strong> &bull; {obs.frp} MW<br />
+                  Level: <span style={{ color: obsColor, fontWeight: 700 }}>{obs.risk_level}</span><br />
+                  {obs.nearest_facility_name}
                 </div>
-              </Popup>
+              </Tooltip>
             </CircleMarker>
+          );
+        })}
+
+        {/* Physical Cluster Centroids (enriched with risk severity) */}
+        {enrichedClusters.map((cluster) => {
+          const isCrit = cluster.risk_level === 'CRITICAL';
+          const isHigh = cluster.risk_level === 'HIGH';
+          const isMod = cluster.risk_level === 'MODERATE';
+          const rColor = getRiskColor(cluster.risk_level, cluster.risk_score);
+          const isSelected = selectedCluster?.cluster_id === cluster.cluster_id;
+          const radius = isCrit ? 12 : isHigh ? 9 : isMod ? 7.5 : 6;
+
+          return (
+            <React.Fragment key={`map-cluster-group-${cluster.cluster_id}`}>
+              {/* Pulsing Warning Halo for Critical Incidents */}
+              {isCrit && (
+                <CircleMarker
+                  center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                  radius={18}
+                  pathOptions={{
+                    fillColor: '#EF4444',
+                    fillOpacity: 0.18,
+                    color: '#EF4444',
+                    weight: 1.5,
+                    dashArray: '3, 4'
+                  }}
+                />
+              )}
+
+              <CircleMarker
+                center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                radius={radius}
+                pathOptions={{
+                  fillColor: rColor,
+                  fillOpacity: 0.95,
+                  color: isSelected ? '#00E5FF' : (isDark ? '#0D1117' : '#FFFFFF'),
+                  weight: isSelected ? 3 : 1.8
+                }}
+                eventHandlers={{
+                  click: () => onSelectCluster(cluster)
+                }}
+              >
+                <Popup>
+                  <div style={{ fontSize: '0.8rem', lineHeight: '1.45', padding: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                      <span 
+                        style={{ 
+                          width: 9, 
+                          height: 9, 
+                          borderRadius: '50%', 
+                          background: rColor, 
+                          display: 'inline-block' 
+                        }} 
+                      />
+                      <strong>{cluster.cluster_id}</strong> &bull; <span style={{ color: rColor, fontWeight: 700 }}>{(cluster.risk_score ?? 0).toFixed(1)}/100</span> ({cluster.risk_level})
+                    </div>
+                    <span>{cluster.nearest_facility_name}</span><br />
+                    <span className="font-mono text-muted" style={{ fontSize: '0.72rem' }}>
+                      {cluster.spatial_context} &bull; Max FRP: {(cluster.max_frp ?? 0).toFixed(1)} MW
+                    </span>
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <button 
+                        className="btn-black-primary"
+                        style={{
+                          padding: '0.32rem 0.65rem',
+                          borderRadius: '3px',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          width: '100%',
+                          justifyContent: 'center'
+                        }}
+                        onClick={() => onSelectCluster(cluster)}
+                      >
+                        Inspect Deep Dive Report &rarr;
+                      </button>
+                    </div>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            </React.Fragment>
           );
         })}
       </MapContainer>
