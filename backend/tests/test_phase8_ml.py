@@ -215,7 +215,7 @@ def test_leakage_free_dataset_builder(tmp_path):
             "cluster_id": "CLUSTER_1",
             "label": 1,
             "risk_score": 92.4,
-            "action_code": "EMERGENCY_DISPATCH"
+            "action_code": "HIGH_PRIORITY_INVESTIGATION_REQUIRED"
         },
         {
             "id": 2,

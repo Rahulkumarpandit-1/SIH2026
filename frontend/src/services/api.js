@@ -39,35 +39,63 @@ export const apiService = {
     return response.data;
   },
 
-  getSummary: async () => {
-    const response = await apiClient.get('/api/summary');
+  getSummary: async (region) => {
+    const params = region ? { region } : {};
+    const response = await apiClient.get('/api/summary', { params });
     return ensureObject(response.data);
   },
 
-  getObservations: async (streamType = 'all') => {
-    const params = streamType && streamType !== 'all' ? { stream_type: streamType } : {};
+  getObservations: async (streamType = 'all', region) => {
+    const params = {};
+    if (streamType && streamType !== 'all') params.stream_type = streamType;
+    if (region) params.region = region;
     const response = await apiClient.get('/api/observations', { params });
     return ensureArray(response.data);
   },
 
-  getClusters: async () => {
-    const response = await apiClient.get('/api/clusters');
+  getClusters: async (region) => {
+    const params = region ? { region } : {};
+    const response = await apiClient.get('/api/clusters', { params });
     return ensureArray(response.data);
   },
 
-  getRisk: async () => {
-    const response = await apiClient.get('/api/risk');
+  getRisk: async (region) => {
+    const params = region ? { region } : {};
+    const response = await apiClient.get('/api/risk', { params });
     return ensureArray(response.data);
   },
 
-  getGeoJSON: async () => {
-    const response = await apiClient.get('/api/geojson');
+  getGeoJSON: async (region) => {
+    const params = region ? { region } : {};
+    const response = await apiClient.get('/api/geojson', { params });
     return ensureObject(response.data);
   },
 
-  getIndustrialPolygons: async () => {
-    const response = await apiClient.get('/api/osm-industrial');
+  getIndustrialPolygons: async (region, bbox) => {
+    const params = {};
+    if (region) params.region = region;
+    if (bbox) params.bbox = bbox;
+    const response = await apiClient.get('/api/osm-industrial', { params });
     return ensureObject(response.data);
+  },
+
+  getRegions: async () => {
+    const response = await apiClient.get('/api/regions');
+    return ensureArray(response.data);
+  },
+
+  getFacilities: async (region) => {
+    const params = region ? { region } : {};
+    const response = await apiClient.get('/api/facilities', { params });
+    return ensureArray(response.data);
+  },
+
+  getExposureAssets: async (region, category) => {
+    const params = {};
+    if (region) params.region = region;
+    if (category) params.category = category;
+    const response = await apiClient.get('/api/exposure-assets', { params });
+    return ensureArray(response.data);
   },
 
   getMLEvaluation: async () => {
@@ -105,6 +133,31 @@ export const apiService = {
     return ensureArray(response.data);
   },
 
+  createGroundTruthLabel: async (payload) => {
+    const response = await apiClient.post('/api/ground-truth', payload);
+    return response.data;
+  },
+
+  updateGroundTruthLabel: async (id, payload) => {
+    const response = await apiClient.put(`/api/ground-truth/${id}`, payload);
+    return response.data;
+  },
+
+  exportGroundTruthCsvUrl: () => {
+    const base = apiClient.defaults.baseURL || '';
+    return `${base}/api/ground-truth/export`;
+  },
+
+  getMLDatasetSummary: async () => {
+    const response = await apiClient.get('/api/ml/dataset');
+    return ensureObject(response.data);
+  },
+
+  getMLDatasetDownloadUrl: () => {
+    const base = apiClient.defaults.baseURL || '';
+    return `${base}/api/ml/dataset?download=true`;
+  },
+
   submitGroundTruthReview: async (payload) => {
     const response = await apiClient.post('/api/ground-truth/review', payload);
     return response.data;
@@ -115,6 +168,29 @@ export const apiService = {
     return ensureObject(response.data);
   },
 
+  getReviewAudit: async (incidentUuid = null, reviewer = null, limit = 50) => {
+    const params = { limit };
+    if (incidentUuid) params.incident_uuid = incidentUuid;
+    if (reviewer) params.reviewer = reviewer;
+    const response = await apiClient.get('/api/review-audit', { params });
+    return ensureArray(response.data);
+  },
+
+  getReviewers: async () => {
+    const response = await apiClient.get('/api/reviewers');
+    return ensureObject(response.data);
+  },
+
+  getDatasetQuality: async () => {
+    const response = await apiClient.get('/api/dataset-quality');
+    return ensureObject(response.data);
+  },
+
+  getMLReadiness: async () => {
+    const response = await apiClient.get('/api/ml/readiness');
+    return ensureObject(response.data);
+  },
+
   refreshData: async (payload = {}) => {
     const response = await apiClient.post('/api/data/refresh', payload);
     return response.data;
@@ -122,6 +198,61 @@ export const apiService = {
 
   getRefreshStatus: async () => {
     const response = await apiClient.get('/api/data/refresh/status');
+    return ensureObject(response.data);
+  },
+
+  getIncidents: async (params = {}) => {
+    const response = await apiClient.get('/api/incidents', { params });
+    return ensureArray(response.data);
+  },
+
+  getIncidentsArchive: async (params = {}) => {
+    const response = await apiClient.get('/api/incidents/archive', { params });
+    return ensureArray(response.data);
+  },
+
+  getIncidentByUuid: async (incidentUuid) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}`);
+    return ensureObject(response.data);
+  },
+
+  getIncidentTimeline: async (incidentUuid) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}/timeline`);
+    return ensureObject(response.data);
+  },
+
+  getFacilityHistory: async (facilityName) => {
+    const response = await apiClient.get(`/api/facilities/${encodeURIComponent(facilityName)}/history`);
+    return ensureObject(response.data);
+  },
+
+  updateIncidentStatus: async (incidentUuid, status) => {
+    const response = await apiClient.patch(`/api/incidents/${encodeURIComponent(incidentUuid)}/status`, { status });
+    return ensureObject(response.data);
+  },
+
+  getRiskAttribution: async (incidentUuid) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}/risk-attribution`);
+    return ensureObject(response.data);
+  },
+
+  getAbnormalityBreakdown: async (incidentUuid) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}/abnormality-breakdown`);
+    return ensureObject(response.data);
+  },
+
+  getSimilarIncidents: async (incidentUuid, params = {}) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}/similar`, { params });
+    return ensureObject(response.data);
+  },
+
+  getFacilityRiskProfile: async (facilityName) => {
+    const response = await apiClient.get(`/api/facilities/${encodeURIComponent(facilityName)}/risk-profile`);
+    return ensureObject(response.data);
+  },
+
+  getExecutiveSummary: async (incidentUuid) => {
+    const response = await apiClient.get(`/api/incidents/${encodeURIComponent(incidentUuid)}/executive-summary`);
     return ensureObject(response.data);
   },
 };

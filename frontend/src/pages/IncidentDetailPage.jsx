@@ -1,13 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Wind, CloudRain, Compass, Users, Building2, Trees, Activity, TrendingUp, Zap } from 'lucide-react';
+import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Wind, CloudRain, Compass, Users, Building2, Trees, Activity, TrendingUp, Zap, History, FileCheck2 } from 'lucide-react';
 import { MapContainer, TileLayer, CircleMarker, GeoJSON } from 'react-leaflet';
 import { useTheme } from '../context/ThemeContext';
 import { MAP_PROVIDERS } from '../services/mapConfig';
+import { apiService } from '../services/api';
 import MapLayerControl from '../components/MapLayerControl';
+import IncidentTemporalPanel from '../components/IncidentTemporalPanel';
+import IncidentTimeline from '../components/IncidentTimeline';
+import IncidentTemporalBanner from '../components/IncidentTemporalBanner';
+import ObservationLimitationsPanel from '../components/ObservationLimitationsPanel';
+import FacilityHistoryCard from '../components/FacilityHistoryCard';
+import FacilityRiskProfileCard from '../components/FacilityRiskProfileCard';
+import ExecutiveSummaryCard from '../components/ExecutiveSummaryCard';
+import RiskAttributionCard from '../components/RiskAttributionCard';
+import AbnormalityBreakdownCard from '../components/AbnormalityBreakdownCard';
+import SimilarIncidentsCard from '../components/SimilarIncidentsCard';
+import { ReviewAuditTimeline } from '../components/ReviewAuditTimeline';
+import { formatToIST, formatRelativeAge, formatTimestampWithRelative } from '../utils/dateUtils';
 
 export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => {
   const { isDark } = useTheme();
   const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
+  const [incidentAuditLogs, setIncidentAuditLogs] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
 
   useEffect(() => {
     setLayerType(isDark ? 'dark' : 'streets');
@@ -94,13 +109,56 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
   const isCrit = risk_level === 'CRITICAL';
   const isHigh = risk_level === 'HIGH';
 
+  const incidentUuid = incident.incident_uuid || cluster_id;
+  const currentStatus = incident.status || 'NEW';
+  const temporalData = incident.temporal_intelligence || {
+    first_detected: incident.first_detected || new Date().toISOString(),
+    last_detected: incident.last_detected || new Date().toISOString(),
+    incident_age_hours: incident.incident_age_hours ?? 0,
+    active_duration_hours: incident.active_duration_hours ?? 0,
+    detection_count: telemetry.total_detections ?? incident.detection_count ?? 1,
+    observation_freshness_minutes: incident.observation_freshness_minutes ?? 0,
+    temporal_status: incident.temporal_status || 'HISTORICAL',
+    is_recently_observed: incident.temporal_status === 'RECENTLY_OBSERVED',
+    scientific_disclosure: 'Incident status is derived strictly from the latest available satellite infrared overpass (NASA FIRMS) and does not represent real-time physical ground truth.'
+  };
+
+  useEffect(() => {
+    if (!incidentUuid) return;
+    let isMounted = true;
+    const fetchAudit = async () => {
+      setLoadingAudit(true);
+      try {
+        const data = await apiService.getReviewAudit(incidentUuid);
+        if (isMounted) setIncidentAuditLogs(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load incident review audit:', err);
+      } finally {
+        if (isMounted) setLoadingAudit(false);
+      }
+    };
+    fetchAudit();
+    return () => { isMounted = false; };
+  }, [incidentUuid]);
+
+  const latestAudit = incidentAuditLogs.length > 0 ? incidentAuditLogs[0] : null;
+  const assignedLabel = incident.assigned_label || (latestAudit?.new_label || 'UNLABELED');
+  const isEdited = incident.is_edited || incidentAuditLogs.filter(l => l.action_type === 'UPDATE').length > 0;
+  const editCount = incident.edit_count || incidentAuditLogs.filter(l => l.action_type === 'UPDATE').length;
+
   return (
     <div className="incident-report-page">
       {/* Back Button */}
-      <button className="btn-text-link" onClick={onBack} style={{ width: 'fit-content', textDecoration: 'none' }}>
+      <button className="btn-text-link" onClick={onBack} style={{ width: 'fit-content', textDecoration: 'none', marginBottom: '0.75rem' }}>
         <ArrowLeft size={14} />
         <span>&larr; Back to Incident Queue</span>
       </button>
+
+      {/* Incident Temporal Clarity Banner (Phase 13.1D — Precedes all analytics sections) */}
+      <IncidentTemporalBanner
+        lastDetected={temporalData.last_detected}
+        temporalStatus={temporalData.temporal_status}
+      />
 
       {/* Incident Header Block */}
       <div className="report-header-block">
@@ -123,6 +181,24 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           <span className="font-bold">{nearest_facility_name}</span>
           <span className="text-muted">&bull;</span>
           <span className="font-mono text-critical font-bold">{action_code}</span>
+          {assignedLabel !== 'UNLABELED' && (
+            <>
+              <span className="text-muted">&bull;</span>
+              <span className="font-mono font-bold text-success" style={{ fontSize: '0.78rem', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10B981', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                {assignedLabel.replace(/_/g, ' ')}
+              </span>
+            </>
+          )}
+          {isEdited && (
+            <span 
+              className="font-mono"
+              title={`Label modified ${editCount} time(s)`}
+              style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.12)', color: '#d97706', border: '1px solid rgba(245, 158, 11, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+            >
+              <History size={11} />
+              Edited ({editCount})
+            </span>
+          )}
         </div>
 
         <div className="text-secondary" style={{ fontSize: '0.88rem' }}>
@@ -140,8 +216,10 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
-            <span className="stat-value font-mono text-secondary">UNLABELED</span>
-            <span className="stat-label">Ground Truth Status</span>
+            <span className={`stat-value font-mono ${assignedLabel !== 'UNLABELED' ? 'text-success' : 'text-secondary'}`}>
+              {assignedLabel.replace(/_/g, ' ')}
+            </span>
+            <span className="stat-label">Ground Truth {isEdited ? `(Edited ×${editCount})` : ''}</span>
           </div>
           <div className="stat-separator" />
           <div className="stat-node">
@@ -428,149 +506,54 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
         )}
       </section>
 
-      {/* SECTION 03: MULTI-DIMENSIONAL ABNORMALITY DETECTION ENGINE */}
-      <section className="report-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          <span className="report-section-heading" style={{ marginBottom: 0 }}>
-            03 &bull; Multi-Dimensional Abnormality Detection Engine
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-              Abnormality Score: <strong className="font-mono">{abScore !== null ? abScore.toFixed(1) : (isSpike ? '85.0' : '22.5')} / 100</strong>
-            </span>
-            <span className={`status-indicator-tag ${
-              abStatus === 'SEVERELY_ABNORMAL' ? 'critical' :
-              abStatus === 'ABNORMAL' ? 'high' :
-              abStatus === 'ELEVATED' ? 'warning' : 'success'
-            }`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem' }}>
-              {abStatus.replace('_', ' ')}
-            </span>
-          </div>
-        </div>
+      {/* SECTION 03: TEMPORAL INTELLIGENCE & OBSERVATION FRESHNESS */}
+      <IncidentTemporalPanel
+        temporalData={temporalData}
+        incidentUuid={incidentUuid}
+        currentStatus={currentStatus}
+      />
 
-        {/* 4 Multi-Dimensional Anomaly Cards */}
-        <div className="report-data-grid" style={{ marginBottom: '1rem' }}>
-          <div className="report-data-item" style={{ borderLeft: '3px solid #D92D20' }}>
-            <span className="report-data-label">1. Intensity Anomaly</span>
-            <span className="report-data-val font-mono">
-              {abIntensity?.ratio ? `${abIntensity.ratio}x Baseline` : `${(currentFpFrp / (baselineFrp || 12)).toFixed(2)}x Baseline`}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              {abIntensity?.current_frp ?? currentFpFrp.toFixed(1)} MW vs {abIntensity?.baseline_frp ?? (baselineFrp || 12).toFixed(1)} MW ({abIntensity?.status ?? thermalStatus})
-            </span>
-          </div>
+      {/* SECTION 04: CHRONOLOGICAL INCIDENT TIMELINE */}
+      <IncidentTimeline
+        incidentUuid={incidentUuid}
+      />
 
-          <div className="report-data-item" style={{ borderLeft: '3px solid #F79009' }}>
-            <span className="report-data-label">2. Persistence Anomaly</span>
-            <span className="report-data-val font-mono">
-              {abPersistence ? `+${abPersistence.excess_percentage.toFixed(0)}% Duration` : (activeDays > 1 ? `+${(activeDays - 1) * 100}% Duration` : 'Normal Baseline')}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              {abPersistence?.current_duration_days ?? activeDays} Days Active vs {abPersistence?.expected_duration_days ?? 1} Day Normal ({abPersistence?.status ?? (activeDays > 2 ? 'ELEVATED' : 'NORMAL')})
-            </span>
-          </div>
+      {/* SECTION 05: FACILITY HISTORICAL INTELLIGENCE & LONGITUDINAL PROFILE */}
+      <FacilityHistoryCard
+        facilityName={nearest_facility_name}
+      />
+      <FacilityRiskProfileCard
+        facilityName={nearest_facility_name}
+      />
 
-          <div className="report-data-item" style={{ borderLeft: '3px solid #7A5AF8' }}>
-            <span className="report-data-label">3. Growth Anomaly</span>
-            <span className="report-data-val font-mono">
-              {abGrowth?.trend ?? (isSpike ? 'ACCELERATING' : 'STABLE')}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              +{abGrowth?.growth_rate_pct?.toFixed(0) ?? (maxFrp > avgFrp ? (((maxFrp - avgFrp) / Math.max(avgFrp, 1)) * 100).toFixed(0) : '0')}% Peak Surge ({abGrowth?.status ?? (isSpike ? 'ABNORMAL' : 'NORMAL')})
-            </span>
-          </div>
+      {/* SECTION 06: EXECUTIVE INCIDENT SUMMARY & DECISION SUPPORT DIRECTIVE */}
+      <ExecutiveSummaryCard
+        incidentUuid={incidentUuid}
+      />
 
-          <div className="report-data-item" style={{ borderLeft: '3px solid #0BA5EC' }}>
-            <span className="report-data-label">4. Recurrence Anomaly</span>
-            <span className="report-data-val font-mono">
-              {abRecurrence?.status ?? (totalDetections > 4 ? 'ABNORMAL' : 'NORMAL')}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-              {abRecurrence?.observed_frequency ?? totalDetections} Events vs {abRecurrence?.baseline_frequency ?? 3} Monthly Baseline
-            </span>
-          </div>
-        </div>
+      {/* SATELLITE OBSERVATION LIMITATIONS (Phase 13.1E) */}
+      <ObservationLimitationsPanel />
 
-        {/* Underlying Persistence & Flaring Discount Matrix */}
-        <div className="report-data-grid">
-          <div className="report-data-item">
-            <span className="report-data-label">Active Detection Days</span>
-            <span className="report-data-val font-mono">{activeDays} Days</span>
-          </div>
+      {/* SECTION 07: EXPLAINABLE RISK ATTRIBUTION BREAKDOWN */}
+      <RiskAttributionCard
+        incidentUuid={incidentUuid}
+      />
 
-          <div className="report-data-item">
-            <span className="report-data-label">Persistence Ratio (Pratio)</span>
-            <span className="report-data-val font-mono">{(persistenceRatio * 100).toFixed(0)}%</span>
-          </div>
+      {/* SECTION 08: MULTI-DIMENSIONAL ABNORMALITY BREAKDOWN */}
+      <AbnormalityBreakdownCard
+        incidentUuid={incidentUuid}
+      />
 
-          <div className="report-data-item">
-            <span className="report-data-label">Acute Anomaly Surge</span>
-            <span className={`report-data-val ${isSpike ? 'text-critical' : ''}`}>
-              {isSpike ? 'YES (UNPRECEDENTED SPIKE)' : 'NORMAL BASELINE'}
-            </span>
-          </div>
-
-          <div className="report-data-item">
-            <span className="report-data-label">Flaring Discount</span>
-            <span className="report-data-val font-mono">
-              {persistenceRatio >= 0.5 ? 'APPLIED (Suppresses Alarm)' : 'NOT APPLIED'}
-            </span>
-          </div>
-        </div>
-
-        {/* Explainable Abnormality Diagnostic Panel */}
-        <div style={{ marginTop: '0.85rem', padding: '0.85rem 1rem', background: 'var(--bg-secondary, #F8FAFC)', borderRadius: '6px', border: '1px solid var(--border-divider, #E2E8F0)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem' }}>
-            <Activity size={16} className="text-secondary" />
-            <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>Explainable Operational Abnormality Assessment</span>
-          </div>
-
-          {/* Itemized Reasons List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', margin: '0.5rem 0 0.65rem 0' }}>
-            {abExplanation && abExplanation.length > 0 ? (
-              abExplanation.map((reason, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: abStatus === 'SEVERELY_ABNORMAL' ? '#D92D20' : '#F79009' }} />
-                  <span className="font-medium">{reason}</span>
-                </div>
-              ))
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D92D20' }} />
-                  <span className="font-medium">FRP is {(currentFpFrp / (baselineFrp || 12)).toFixed(1)}x above baseline</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F79009' }} />
-                  <span className="font-medium">Event duration {activeDays > 1 ? `exceeds normal by ${(activeDays - 1) * 100}%` : 'within normal baseline'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7A5AF8' }} />
-                  <span className="font-medium">Thermal growth {isSpike ? 'accelerating rapidly' : 'stable'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.82rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0BA5EC' }} />
-                  <span className="font-medium">Recurrence {totalDetections > 4 ? 'exceeds monthly average' : 'within monthly baseline'}</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          <p className="text-secondary" style={{ fontSize: '0.8rem', lineHeight: 1.5, margin: 0, borderTop: '1px solid var(--border-divider, #E2E8F0)', paddingTop: '0.5rem', fontStyle: 'italic' }}>
-            {abNarrative || (
-              abStatus === 'SEVERELY_ABNORMAL' || isSpike
-                ? `CRITICAL ABNORMALITY: Incident exhibits unprecedented radiative surge (${(currentFpFrp / (baselineFrp || 12)).toFixed(1)}x baseline) with explosive thermal growth. Duration and recurrence patterns significantly deviate from routine operational flaring.`
-                : `Thermal activity is within expected historical flaring and seasonal operational tolerances for ${nearest_facility_name}.`
-            )}
-          </p>
-        </div>
-      </section>
+      {/* SECTION 09: HISTORICALLY SIMILAR INCIDENT PRECEDENTS */}
+      <SimilarIncidentsCard
+        incidentUuid={incidentUuid}
+      />
 
       {/* SECTION D: WEATHER CONTEXT & ATMOSPHERIC DISPERSION */}
       <section className="report-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <span className="report-section-heading" style={{ marginBottom: 0 }}>
-            04 &bull; Real-Time Weather Context &amp; Atmospheric Dispersion
+            10 &bull; Real-Time Weather Context &amp; Atmospheric Dispersion
           </span>
           {wx && (
             <span className={`status-indicator-tag ${
@@ -661,7 +644,7 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
       <section className="report-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <span className="report-section-heading" style={{ marginBottom: 0 }}>
-            05 &bull; Geospatial Exposure Analysis &amp; Potential Consequence Zone
+            11 &bull; Geospatial Exposure Analysis &amp; Potential Consequence Zone
           </span>
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
             <span className={`status-indicator-tag ${
@@ -814,7 +797,7 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
 
       {/* SECTION F: RISK ENGINE CALCULATION */}
       <section className="report-section">
-        <span className="report-section-heading">06 &bull; Multi-Signal Risk Score Math (Phase 4 Deterministic Engine)</span>
+        <span className="report-section-heading">12 &bull; Multi-Signal Risk Score Math (Phase 4 Deterministic Engine)</span>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <div className="bar-row-clean">
@@ -857,31 +840,74 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
 
       {/* SECTION G: OPERATIONAL DIRECTIVE */}
       <section className="report-section">
-        <span className="report-section-heading">07 &bull; Operational Recommendation</span>
+        <span className="report-section-heading">13 &bull; Operational Recommendation &amp; Mandated Action Directive</span>
 
         <div className="report-action-box">
           <div>
-            <span className="report-data-label">Mandated Action Directive</span>
-            <div className="font-mono text-critical font-bold" style={{ fontSize: '1.4rem' }}>
+            <span className="report-data-label">Recommended Operational Directive</span>
+            <div className="font-mono text-critical font-bold" style={{ fontSize: '1.2rem', wordBreak: 'break-word' }}>
               {action_code}
             </div>
           </div>
 
           <div className="text-secondary" style={{ fontSize: '0.85rem', maxWidth: '480px', lineHeight: 1.55 }}>
             {risk_level === 'CRITICAL' 
-              ? 'High-priority emergency protocol: Immediate plant safety officer contact, emergency dispatch alert, and coordinated drone reconnaissance.'
+              ? 'High Priority Investigation Required: Rapid site review, visual verification, and facility safety contact recommended. Ground verification is required before operational response decisions.'
               : risk_level === 'HIGH'
-              ? 'Priority inspection directive: CCTV sensor verification and facility perimeter patrol within 30 minutes.'
+              ? 'Escalated Investigation Recommended: Check plant flaring logs and verify against historical thermal baseline.'
               : risk_level === 'MODERATE'
-              ? 'Operational background logging: Multi-day flare stack activity monitored for thermal deviations.'
-              : 'Standard remote monitoring: Low-risk thermal signal in rural/agricultural boundary.'}
+              ? 'Analyst Review Recommended: Automated tracking of known operational flares and persistent thermal sources.'
+              : 'Routine Monitoring Recommended: Standard background observation of rural/agricultural thermal signatures.'}
           </div>
         </div>
       </section>
 
-      {/* SECTION H: SCIENTIFIC DISCLAIMER */}
+      {/* SECTION H: HUMAN INTELLIGENCE GROUND TRUTH & AUDIT TRAIL (Phase 14) */}
+      <section className="report-section">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <span className="report-section-heading">14 &bull; Human Intelligence Ground Truth &amp; Verification Audit Trail</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className={`status-indicator-tag ${assignedLabel !== 'UNLABELED' ? 'success' : 'neutral'} font-mono font-bold`} style={{ fontSize: '0.74rem' }}>
+              LABEL: {assignedLabel.replace(/_/g, ' ')}
+            </span>
+            {isEdited && (
+              <span 
+                className="font-mono"
+                style={{ 
+                  fontSize: '0.72rem', 
+                  fontWeight: 700, 
+                  padding: '0.15rem 0.45rem', 
+                  borderRadius: '4px', 
+                  background: 'rgba(245, 158, 11, 0.12)', 
+                  color: '#d97706', 
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}
+              >
+                <History size={11} />
+                {editCount} Revision(s)
+              </span>
+            )}
+          </div>
+        </div>
+
+        <p className="text-secondary" style={{ fontSize: '0.84rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+          Immutable verification trail recorded by certified human analysts. In strict compliance with scientific integrity standards,
+          only verified human classifications form training truth for downstream ML models.
+        </p>
+
+        <ReviewAuditTimeline
+          auditLogs={incidentAuditLogs}
+          incidentFilter={incidentUuid}
+          loading={loadingAudit}
+        />
+      </section>
+
+      {/* SECTION I: SCIENTIFIC DISCLAIMER */}
       <section className="report-section" style={{ borderBottom: 'none' }}>
-        <span className="report-section-heading">08 &bull; Scientific Disclaimer &amp; Verification Protocol</span>
+        <span className="report-section-heading">15 &bull; Scientific Disclaimer &amp; Verification Protocol</span>
         
         <div className="alert-callout-neutral">
           <div className="callout-icon text-muted"><HelpCircle size={22} /></div>

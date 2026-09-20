@@ -11,12 +11,21 @@ import {
   ArrowRight,
   Database,
   Sliders,
-  Play
+  Play,
+  Download,
+  FileSpreadsheet,
+  BarChart3
 } from 'lucide-react';
+
+import { DatasetQualityCard } from '../components/DatasetQualityCard';
+import { TrainingReadinessCard } from '../components/TrainingReadinessCard';
 
 export const MachineLearningPage = () => {
   const [mlData, setMlData] = useState(null);
   const [mlStatus, setMlStatus] = useState(null);
+  const [datasetSummary, setDatasetSummary] = useState(null);
+  const [readinessData, setReadinessData] = useState(null);
+  const [qualityData, setQualityData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -34,23 +43,30 @@ export const MachineLearningPage = () => {
   const [predictionResult, setPredictionResult] = useState(null);
   const [predicting, setPredicting] = useState(false);
 
+  const fetchML = async () => {
+    setLoading(true);
+    try {
+      const [mlRes, statusRes, dsRes, readinessRes, qualityRes] = await Promise.all([
+        apiService.getMLEvaluation().catch(() => null),
+        apiService.getMLStatus().catch(() => null),
+        apiService.getMLDatasetSummary().catch(() => null),
+        apiService.getMLReadiness().catch(() => null),
+        apiService.getDatasetQuality().catch(() => null)
+      ]);
+      if (mlRes) setMlData(mlRes);
+      if (statusRes) setMlStatus(statusRes);
+      if (dsRes) setDatasetSummary(dsRes);
+      if (readinessRes) setReadinessData(readinessRes);
+      if (qualityRes) setQualityData(qualityRes);
+    } catch (err) {
+      console.error('Failed to load ML evaluation data:', err);
+      setError('Machine learning evaluation API is currently unavailable.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchML = async () => {
-      setLoading(true);
-      try {
-        const [mlRes, statusRes] = await Promise.all([
-          apiService.getMLEvaluation().catch(() => null),
-          apiService.getMLStatus().catch(() => null)
-        ]);
-        if (mlRes) setMlData(mlRes);
-        if (statusRes) setMlStatus(statusRes);
-      } catch (err) {
-        console.error('Failed to load ML evaluation data:', err);
-        setError('Machine learning evaluation API is currently unavailable.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchML();
   }, []);
 
@@ -103,31 +119,10 @@ export const MachineLearningPage = () => {
         </p>
       </section>
 
-      {/* 02 — STATUS: NOT READY & WHY */}
-      <section className="spacious-section">
-        <div className="alert-callout-warning">
-          <div className="callout-icon text-warning"><AlertTriangle size={26} /></div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-                CURRENT ML STATUS: {mlStatus?.status || 'NOT READY'}
-              </h3>
-              <span className="badge-warning">Phase 4 Deterministic Rule Engine is Active Production MVP</span>
-            </div>
-            
-            <p className="text-secondary" style={{ fontSize: '0.9rem', lineHeight: 1.6, marginTop: '0.5rem' }}>
-              <strong>WHY IS SUPERVISED ML NOT_READY?</strong><br />
-              {mlStatus?.reason || 'Supervised learning requires >= 2 distinct verified classes and multiple independent spatial clusters to prevent geographic memorization.'}
-              {" "}In accordance with remote sensing scientific standards, <strong>we refuse to display fabricated 99% accuracy numbers</strong> when verified multi-class ground-truth labels remain sparse.
-            </p>
-
-            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.82rem' }} className="font-mono text-secondary">
-              <span>Verified Labeled Samples: <strong>{mlStatus?.labeled_samples ?? 0}</strong></span>
-              <span>Classes Present: <strong>{mlStatus?.classes_present ?? 0} of 4</strong></span>
-              <span>Spatial Groups: <strong>{mlStatus?.spatial_groups_count ?? 0}</strong></span>
-            </div>
-          </div>
-        </div>
+      {/* 02 — PHASE 14: ML TRAINING READINESS & DATASET QUALITY GOVERNANCE */}
+      <section className="spacious-section" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <TrainingReadinessCard readinessData={readinessData} loading={loading} onRefresh={fetchML} />
+        <DatasetQualityCard qualityData={qualityData} loading={loading} onRefresh={fetchML} />
       </section>
 
       <div className="divider" />
@@ -185,7 +180,7 @@ export const MachineLearningPage = () => {
             <h4 className="panel-heading">Target Classification Taxonomy (4 Classes):</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.4rem', fontSize: '0.86rem' }}>
               <div><strong>CLASS 0:</strong> Persistent Industrial Source (Refinery Flare / Boiler)</div>
-              <div><strong>CLASS 1:</strong> Industrial Fire Outbreak (Acute Emergency Disaster)</div>
+              <div><strong>CLASS 1:</strong> Industrial Fire Outbreak (Verified Ground-Truth Event)</div>
               <div><strong>CLASS 2:</strong> Agricultural Wildfire (Crop Residue Burn)</div>
               <div><strong>CLASS 3:</strong> False Detection (Solar Glint / Sensor Glare)</div>
             </div>
@@ -300,6 +295,181 @@ export const MachineLearningPage = () => {
               Cross-validation partitions observations strictly by physical DBSCAN cluster ID. 
               No spatial cluster appears simultaneously in training and test splits, guaranteeing 0% geographic contamination and true out-of-sample generalization.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <div className="divider" />
+
+      {/* PHASE 10 — MACHINE LEARNING DATASET BUILDER & FEATURE LAB */}
+      <section className="spacious-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div>
+            <div className="section-tag">PHASE 10 &bull; DATASET BUILDER &amp; FEATURE ENGINEERING LAB</div>
+            <h2 className="section-heading">ML-Ready Training Dataset &amp; Multi-Engine Features</h2>
+            <p className="section-subtext">
+              Automated multi-engine feature synthesis pipeline generating <code className="code-pill">backend/data/ml_dataset.csv</code> by combining
+              Risk, Weather, Exposure, Fingerprinting, and Abnormality signals with verified ground-truth target labels.
+            </p>
+          </div>
+
+          <a
+            href={apiService.getMLDatasetDownloadUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-black-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', padding: '0.65rem 1.25rem' }}
+          >
+            <Download size={15} />
+            <span>Export ML Dataset (CSV)</span>
+          </a>
+        </div>
+
+        {/* 1. Dataset Statistics Cards */}
+        <div className="grid-4" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="report-data-item" style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)' }}>
+            <span className="report-data-label" style={{ fontSize: '0.74rem' }}>Total Generated Samples</span>
+            <span className="report-data-val font-mono font-bold" style={{ fontSize: '1.7rem' }}>
+              {datasetSummary?.total_samples ?? 0}
+            </span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Physical cluster incidents</span>
+          </div>
+
+          <div className="report-data-item" style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)' }}>
+            <span className="report-data-label" style={{ fontSize: '0.74rem' }}>Verified Labeled Targets</span>
+            <span className="report-data-val font-mono font-bold text-success" style={{ fontSize: '1.7rem' }}>
+              {datasetSummary?.labeled_count ?? 0}
+            </span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+              {datasetSummary?.total_samples ? `${Math.round(((datasetSummary.labeled_count || 0) / datasetSummary.total_samples) * 100)}% verified` : '0%'}
+            </span>
+          </div>
+
+          <div className="report-data-item" style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)' }}>
+            <span className="report-data-label" style={{ fontSize: '0.74rem' }}>Pending Unlabeled Queue</span>
+            <span className="report-data-val font-mono font-bold text-warning" style={{ fontSize: '1.7rem' }}>
+              {datasetSummary?.unlabeled_count ?? 0}
+            </span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Awaiting review validation</span>
+          </div>
+
+          <div className="report-data-item" style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)' }}>
+            <span className="report-data-label" style={{ fontSize: '0.74rem' }}>Engineered Feature Columns</span>
+            <span className="report-data-val font-mono font-bold text-info" style={{ fontSize: '1.7rem' }}>
+              {datasetSummary?.feature_count ?? 13}
+            </span>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>Multi-engine input signals</span>
+          </div>
+        </div>
+
+        {/* 2. Label Distribution Visualizer */}
+        <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <BarChart3 size={16} className="text-secondary" />
+              <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>Ground Truth Target Label Distribution</span>
+            </div>
+            <span className="text-secondary" style={{ fontSize: '0.78rem' }}>
+              Generated File: <code className="font-mono">{datasetSummary?.dataset_file || 'backend/data/ml_dataset.csv'}</code>
+            </span>
+          </div>
+
+          {datasetSummary?.label_distribution ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-primary)', borderLeft: '3px solid #EF4444' }}>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>TRUE_FIRE</span>
+                <span className="font-mono font-bold" style={{ fontSize: '1.1rem', color: '#EF4444' }}>
+                  {datasetSummary.label_distribution.TRUE_FIRE ?? 0}
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>Uncontained Fires</span>
+              </div>
+
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-primary)', borderLeft: '3px solid #3B82F6' }}>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>CONTROLLED_FLARING</span>
+                <span className="font-mono font-bold" style={{ fontSize: '1.1rem', color: '#3B82F6' }}>
+                  {datasetSummary.label_distribution.CONTROLLED_FLARING ?? 0}
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>Operational Flares</span>
+              </div>
+
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-primary)', borderLeft: '3px solid #A855F7' }}>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>MAINTENANCE_ACTIVITY</span>
+                <span className="font-mono font-bold" style={{ fontSize: '1.1rem', color: '#A855F7' }}>
+                  {datasetSummary.label_distribution.MAINTENANCE_ACTIVITY ?? 0}
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>Scheduled Thermal Load</span>
+              </div>
+
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-primary)', borderLeft: '3px solid #10B981' }}>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>FALSE_ALARM</span>
+                <span className="font-mono font-bold" style={{ fontSize: '1.1rem', color: '#10B981' }}>
+                  {datasetSummary.label_distribution.FALSE_ALARM ?? 0}
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>Sensor / Glint Artifacts</span>
+              </div>
+
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-primary)', borderLeft: '3px solid #64748B' }}>
+                <span className="report-data-label" style={{ fontSize: '0.7rem' }}>UNLABELED</span>
+                <span className="font-mono font-bold" style={{ fontSize: '1.1rem', color: '#64748B' }}>
+                  {datasetSummary.label_distribution.UNLABELED ?? 0}
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>Pending Analyst Review</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted" style={{ fontSize: '0.84rem' }}>Dataset distribution computing...</div>
+          )}
+        </div>
+
+        {/* 3. 13-Feature Engineering Summary Table */}
+        <div style={{ border: '1px solid var(--border-subtle)', borderRadius: '8px', overflow: 'hidden' }}>
+          <div style={{ padding: '0.85rem 1.1rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FileSpreadsheet size={16} className="text-secondary" />
+              <span style={{ fontSize: '0.86rem', fontWeight: 700 }}>13 Multi-Engine Synthesized Features Summary Matrix</span>
+            </div>
+            <span className="text-secondary" style={{ fontSize: '0.76rem' }}>Target Column: <code className="font-mono font-bold">ground_truth_label</code></span>
+          </div>
+
+          <div className="table-responsive">
+            <table className="clean-table" style={{ margin: 0, fontSize: '0.82rem' }}>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Feature Name</th>
+                  <th>Originating Engine</th>
+                  <th>Unit</th>
+                  <th>Min</th>
+                  <th>Mean</th>
+                  <th>Max</th>
+                  <th>Physical Feature Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datasetSummary?.features && datasetSummary.features.length > 0 ? (
+                  datasetSummary.features.map((feat, idx) => (
+                    <tr key={feat.name}>
+                      <td className="font-mono text-muted">{String(idx + 1).padStart(2, '0')}</td>
+                      <td className="font-mono font-bold" style={{ color: 'var(--text-main)' }}>{feat.name}</td>
+                      <td>
+                        <span className="pill-badge pill-neutral font-mono" style={{ fontSize: '0.72rem' }}>{feat.source}</span>
+                      </td>
+                      <td className="font-mono text-secondary">{feat.unit}</td>
+                      <td className="font-mono">{feat.min !== null ? feat.min : '-'}</td>
+                      <td className="font-mono font-bold">{feat.mean !== null ? feat.mean : '-'}</td>
+                      <td className="font-mono">{feat.max !== null ? feat.max : '-'}</td>
+                      <td className="text-secondary" style={{ fontSize: '0.78rem', maxWidth: '300px' }}>{feat.description}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                      Loading feature summary metadata...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

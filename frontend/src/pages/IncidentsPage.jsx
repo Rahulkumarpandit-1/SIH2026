@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, ShieldAlert, CheckCircle2, Radio, Info } from 'lucide-react';
+import { Search, ArrowUpDown, ShieldAlert, CheckCircle2, Radio, Info, Clock, Calendar, RefreshCw } from 'lucide-react';
+import { formatToIST, formatRelativeAge } from '../utils/dateUtils';
 
 export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
   const [selectedRisk, setSelectedRisk] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
-  const [selectedStream, setSelectedStream] = useState('ALL');
+  const [selectedTemporal, setSelectedTemporal] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('risk_score');
   const [sortAsc, setSortAsc] = useState(false);
@@ -18,23 +20,44 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
 
   const filteredIncidents = useMemo(() => {
     return safeRiskData.filter((item) => {
+      // Risk level filter
       if (selectedRisk !== 'ALL' && item.risk_level !== selectedRisk) return false;
+
+      // Classification filter
       if (selectedClass !== 'ALL' && item.incident_classification !== selectedClass) return false;
 
+      // Temporal status filter (supports RECENTLY_OBSERVED and ACTIVE alias)
+      if (selectedTemporal !== 'ALL') {
+        const itemTemporal = (item.temporal_status || 'HISTORICAL').toUpperCase();
+        if (selectedTemporal === 'RECENTLY_OBSERVED' || selectedTemporal === 'ACTIVE') {
+          if (itemTemporal !== 'RECENTLY_OBSERVED' && itemTemporal !== 'ACTIVE') return false;
+        } else if (itemTemporal !== selectedTemporal) {
+          return false;
+        }
+      }
+
+      // Investigation status filter
+      if (selectedStatus !== 'ALL') {
+        const itemStatus = (item.status || 'NEW').toUpperCase();
+        if (itemStatus !== selectedStatus) return false;
+      }
+
+      // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchId = item.cluster_id?.toLowerCase().includes(q);
+        const matchUuid = item.incident_uuid?.toLowerCase().includes(q);
         const matchFacility = item.nearest_facility_name?.toLowerCase().includes(q);
         const matchAction = item.action_code?.toLowerCase().includes(q);
         const matchContext = item.spatial_context?.toLowerCase().includes(q);
-        if (!matchId && !matchFacility && !matchAction && !matchContext) return false;
+        if (!matchId && !matchUuid && !matchFacility && !matchAction && !matchContext) return false;
       }
       return true;
     }).sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
 
-      // Handle nested telemetry sorting
+      // Handle nested telemetry or date sorting
       if (sortField === 'max_frp') {
         valA = a.telemetry?.max_frp ?? 0;
         valB = b.telemetry?.max_frp ?? 0;
@@ -44,6 +67,15 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       } else if (sortField === 'persistence') {
         valA = a.telemetry?.persistence_ratio ?? 0;
         valB = b.telemetry?.persistence_ratio ?? 0;
+      } else if (sortField === 'detections') {
+        valA = a.telemetry?.total_detections ?? a.detection_count ?? 1;
+        valB = b.telemetry?.total_detections ?? b.detection_count ?? 1;
+      } else if (sortField === 'age') {
+        valA = a.incident_age_hours ?? 0;
+        valB = b.incident_age_hours ?? 0;
+      } else if (sortField === 'first_detected' || sortField === 'last_detected') {
+        valA = new Date(a[sortField] || 0).getTime();
+        valB = new Date(b[sortField] || 0).getTime();
       }
 
       valA = valA ?? 0;
@@ -54,7 +86,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       }
       return sortAsc ? valA - valB : valB - valA;
     });
-  }, [safeRiskData, selectedRisk, selectedClass, searchQuery, sortField, sortAsc]);
+  }, [safeRiskData, selectedRisk, selectedClass, selectedTemporal, selectedStatus, searchQuery, sortField, sortAsc]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -65,99 +97,173 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
     }
   };
 
+  const formatShortDate = (isoStr) => {
+    if (!isoStr) return '--:--';
+    try {
+      const d = new Date(isoStr);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const m = months[d.getUTCMonth()];
+      const day = d.getUTCDate();
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${m} ${day}, ${hh}:${mm} UTC`;
+    } catch {
+      return isoStr.slice(5, 16);
+    }
+  };
+
+  const formatAge = (hours) => {
+    if (hours === null || hours === undefined || hours === 0) return '0.0h';
+    if (hours >= 24) return `${(hours / 24).toFixed(1)}d`;
+    return `${hours.toFixed(1)}h`;
+  };
+
   return (
     <div className="incidents-page">
       {/* Page Header */}
-      <div className="page-header-block" style={{ marginBottom: '2rem' }}>
-        <div className="section-tag">NEAR-REAL-TIME INVESTIGATION QUEUE &bull; SIH26162</div>
+      <div className="page-header-block" style={{ marginBottom: '1.5rem' }}>
+        <div className="section-tag">INVESTIGATION MANAGEMENT &bull; TEMPORAL INTELLIGENCE &bull; SIH26162</div>
         <h1 className="section-heading-lg">Prioritized Incident Queue</h1>
         <p className="section-subtext">
-          Satellite thermal clusters prioritized by deterministic multi-signal risk calculation. 
+          Satellite thermal clusters prioritized by deterministic multi-signal risk and observation freshness.
           Select any incident record to open the complete scientific intelligence investigation report.
         </p>
       </div>
 
-      {/* Scientific Prioritization Notice */}
-      <div className="alert-callout-neutral" style={{ marginBottom: '1.5rem' }}>
+      {/* Observation-Derived Scientific Notice */}
+      <div className="alert-callout-neutral" style={{ marginBottom: '1.25rem' }}>
         <div className="callout-icon text-info"><Info size={20} /></div>
-        <div style={{ fontSize: '0.86rem', lineHeight: 1.55 }}>
-          <strong>Decision-Support Notice:</strong> Detections are categorized as 
-          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.35rem' }}>DETECTED</span> 
-          by orbital infrared sensors. High risk scores prioritize emergency drone/CCTV inspection and dispatch, 
-          not autonomous legal verification of a factory fire.
+        <div style={{ fontSize: '0.84rem', lineHeight: 1.55 }}>
+          <strong>Observation-Derived Telemetry:</strong> Temporal status (
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>RECENTLY_OBSERVED (&le;6h)</span>,
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>RECENT (6-24h)</span>,
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>HISTORICAL (&gt;24h)</span>
+          ) is derived strictly from the latest orbital infrared satellite pass (NASA FIRMS) and does not represent real-time physical ground confirmation.
         </div>
       </div>
 
-      {/* Clean Toolbar */}
-      <div className="table-toolbar-clean">
-        <input
-          type="text"
-          placeholder="Search by facility name, cluster ID, or action code..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="clean-search-input"
-        />
+      {/* Enhanced Multi-Tier Filter Toolbar */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+        {/* Search and Risk Filters */}
+        <div className="table-toolbar-clean" style={{ flexWrap: 'wrap', gap: '0.6rem' }}>
+          <input
+            type="text"
+            placeholder="Search by facility name, cluster ID, or UUID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="clean-search-input"
+            style={{ minWidth: '260px' }}
+          />
 
-        <div className="filter-button-group">
-          {['ALL', 'CRITICAL', 'HIGH', 'MODERATE', 'LOW'].map((tier) => (
-            <button
-              key={tier}
-              className={`filter-btn-text ${selectedRisk === tier ? 'active' : ''}`}
-              onClick={() => setSelectedRisk(tier)}
-            >
-              {tier}
-            </button>
-          ))}
+          <div className="filter-button-group">
+            {['ALL', 'CRITICAL', 'HIGH', 'MODERATE', 'LOW'].map((tier) => (
+              <button
+                key={tier}
+                className={`filter-btn-text ${selectedRisk === tier ? 'active' : ''}`}
+                onClick={() => setSelectedRisk(tier)}
+              >
+                {tier}
+              </button>
+            ))}
+          </div>
 
+          {/* Investigation Status Filter */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="select-input"
+            style={{ padding: '0.4rem 0.65rem', fontSize: '0.76rem' }}
+          >
+            <option value="ALL">All Investigation States</option>
+            <option value="NEW">NEW</option>
+            <option value="UNDER_REVIEW">UNDER REVIEW</option>
+            <option value="VERIFIED_FIRE">VERIFIED FIRE</option>
+            <option value="FALSE_ALARM">FALSE ALARM</option>
+            <option value="CONTROLLED_FLARING">CONTROLLED FLARING</option>
+          </select>
+
+          {/* Spatial Landuse Classification */}
           {classifications.length > 2 && (
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               className="select-input"
-              style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
+              style={{ padding: '0.4rem 0.65rem', fontSize: '0.76rem' }}
             >
               {classifications.map((c) => (
                 <option key={c} value={c}>
-                  {c === 'ALL' ? 'All Classifications' : c}
+                  {c === 'ALL' ? 'All Landuses' : c}
                 </option>
               ))}
             </select>
           )}
         </div>
+
+        {/* Temporal Intelligence Filter Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+          <span className="text-muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem' }}>
+            Temporal Status:
+          </span>
+          {[
+            { label: 'All Windows', val: 'ALL' },
+            { label: 'Recently Observed (≤6h)', val: 'RECENTLY_OBSERVED' },
+            { label: 'Recent (6–24h)', val: 'RECENT' },
+            { label: 'Historical (>24h)', val: 'HISTORICAL' }
+          ].map((t) => (
+            <button
+              key={t.val}
+              onClick={() => setSelectedTemporal(t.val)}
+              className={`filter-btn-text ${selectedTemporal === t.val ? 'active' : ''}`}
+              style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+            >
+              {t.label}
+            </button>
+          ))}
+          <span className="text-muted" style={{ marginLeft: 'auto', fontSize: '0.76rem' }}>
+            Showing <strong>{filteredIncidents.length}</strong> of {safeRiskData.length} records
+          </span>
+        </div>
       </div>
 
-      {/* Clean Incident Table */}
+      {/* Clean Incident Table with Enhanced Temporal Columns */}
       <div className="table-responsive">
-        <table className="clean-table">
+        <table className="clean-table" style={{ fontSize: '0.8rem' }}>
           <thead>
             <tr>
               <th onClick={() => handleSort('rank')} style={{ cursor: 'pointer' }}>
                 Rank
               </th>
-              <th>Cluster ID</th>
+              <th>Cluster / UUID</th>
               <th onClick={() => handleSort('risk_score')} style={{ cursor: 'pointer' }}>
                 Risk Score
               </th>
               <th>Tier</th>
-              <th>Facility &amp; Spatial Context</th>
+              <th>Temporal Status</th>
+              <th>Facility &amp; Regional Context</th>
+              <th onClick={() => handleSort('first_detected')} style={{ cursor: 'pointer' }}>
+                First Detected
+              </th>
+              <th onClick={() => handleSort('last_detected')} style={{ cursor: 'pointer' }}>
+                Last Detected
+              </th>
+              <th onClick={() => handleSort('age')} style={{ cursor: 'pointer' }}>
+                Age
+              </th>
+              <th onClick={() => handleSort('detections')} style={{ cursor: 'pointer' }}>
+                Passes
+              </th>
               <th onClick={() => handleSort('max_frp')} style={{ cursor: 'pointer' }}>
                 Peak FRP
               </th>
-              <th onClick={() => handleSort('distance')} style={{ cursor: 'pointer' }}>
-                Boundary Dist
-              </th>
-              <th onClick={() => handleSort('persistence')} style={{ cursor: 'pointer' }}>
-                Persistence
-              </th>
-              <th>Action Code</th>
-              <th>Status</th>
+              <th>Action Directive</th>
+              <th>Investigation</th>
             </tr>
           </thead>
           <tbody>
             {filteredIncidents.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                  No incidents matching the current search and filter criteria.
+                <td colSpan={13} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  No incidents matching the current search, temporal status, and investigation filter criteria.
                 </td>
               </tr>
             ) : (
@@ -165,14 +271,26 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                 const isCrit = item.risk_level === 'CRITICAL';
                 const isHigh = item.risk_level === 'HIGH';
                 const isMod = item.risk_level === 'MODERATE';
-                const maxFrp = item.telemetry?.max_frp ?? 0.0;
-                const dist = item.telemetry?.distance_to_industry_meters ?? 0.0;
-                const pRatio = item.telemetry?.persistence_ratio ?? 0.0;
+                const maxFrp = item.telemetry?.max_frp ?? item.peak_frp ?? 0.0;
+                const detections = item.telemetry?.total_detections ?? item.detection_count ?? 1;
+                const tempStatus = item.temporal_status || 'HISTORICAL';
+                const isRecentObs = tempStatus === 'RECENTLY_OBSERVED' || tempStatus === 'ACTIVE';
+                const isRecent = tempStatus === 'RECENT';
+                const invStatus = item.status || 'NEW';
 
                 return (
-                  <tr key={item.cluster_id} onClick={() => onOpenIncidentDetail(item)}>
+                  <tr key={item.incident_uuid || item.cluster_id} onClick={() => onOpenIncidentDetail(item)}>
                     <td className="font-mono text-muted">#{item.rank}</td>
-                    <td className="font-mono font-bold">{item.cluster_id}</td>
+                    <td>
+                      <div className="font-mono font-bold" style={{ fontSize: '0.82rem' }}>
+                        {item.cluster_id}
+                      </div>
+                      {item.incident_uuid && item.incident_uuid !== item.cluster_id && (
+                        <span className="font-mono text-muted" style={{ display: 'block', fontSize: '0.68rem' }}>
+                          {item.incident_uuid.length > 22 ? `${item.incident_uuid.slice(0, 20)}...` : item.incident_uuid}
+                        </span>
+                      )}
+                    </td>
                     <td>
                       <strong className={isCrit ? 'text-critical' : isHigh ? 'text-warning' : ''}>
                         {item.risk_score.toFixed(1)} / 100
@@ -184,33 +302,45 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                       </span>
                     </td>
                     <td>
-                      <span className="font-bold">{item.nearest_facility_name}</span>
-                      <span className="text-secondary" style={{ display: 'block', fontSize: '0.74rem' }}>
-                        {item.spatial_context} &bull; {item.centroid_latitude?.toFixed(3)}°N, {item.centroid_longitude?.toFixed(3)}°E
+                      <span className={`status-indicator-tag ${
+                        isRecentObs ? 'critical' : isRecent ? 'warning' : 'neutral'
+                      }`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
+                        {tempStatus.replace(/_/g, ' ')}
                       </span>
-                      {item.abnormality_detection && item.abnormality_detection.abnormality_status && item.abnormality_detection.abnormality_status !== 'NORMAL' && (
-                        <span className={`status-indicator-tag ${
-                          item.abnormality_detection.abnormality_status === 'SEVERELY_ABNORMAL' ? 'critical' :
-                          item.abnormality_detection.abnormality_status === 'ABNORMAL' ? 'high' : 'warning'
-                        }`} style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', marginTop: '0.2rem', display: 'inline-block' }}>
-                          {item.abnormality_detection.abnormality_status.replace('_', ' ')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="font-mono">{maxFrp.toFixed(1)} MW</td>
-                    <td className="font-mono">
-                      {dist === 0 ? (
-                        <span className="badge-critical">0 m (Inside)</span>
-                      ) : (
-                        `${dist.toLocaleString()} m`
-                      )}
-                    </td>
-                    <td className="font-mono">{(pRatio * 100).toFixed(0)}% ({item.telemetry?.active_days_count ?? 1}d)</td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.78rem' }}>
-                      {item.action_code}
                     </td>
                     <td>
-                      <span className="pill-badge pill-neutral font-mono">DETECTED</span>
+                      <span className="font-bold">{item.nearest_facility_name}</span>
+                      <span className="text-secondary" style={{ display: 'block', fontSize: '0.72rem' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--primary, #38BDF8)', marginRight: '4px' }}>
+                          📍 {item.state || 'India'}
+                        </span>
+                        &bull; {item.spatial_context}
+                      </span>
+                    </td>
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
+                      {formatToIST(item.first_detected)}
+                    </td>
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
+                      {formatToIST(item.last_detected)}
+                    </td>
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                      {formatRelativeAge(item.last_detected, '')}
+                    </td>
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.76rem' }}>
+                      {detections}
+                    </td>
+                    <td className="font-mono font-bold" style={{ whiteSpace: 'nowrap' }}>
+                      {maxFrp.toFixed(1)} MW
+                    </td>
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem' }}>
+                      {item.action_directive || item.action_code?.replace(/_/g, ' ')}
+                    </td>
+                    <td>
+                      <span className={`status-indicator-tag ${
+                        invStatus === 'VERIFIED_FIRE' ? 'critical' : invStatus === 'FALSE_ALARM' ? 'success' : invStatus === 'UNDER_REVIEW' ? 'warning' : 'neutral'
+                      }`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
+                        {invStatus}
+                      </span>
                     </td>
                   </tr>
                 );

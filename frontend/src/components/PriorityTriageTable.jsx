@@ -25,7 +25,7 @@ export const PriorityTriageTable = ({ riskData = [], selectedClusterId, onSelect
             <th>Persistence</th>
             <th>Anomaly</th>
             <th>Risk Score</th>
-            <th>Action Required</th>
+            <th>Recommended Directive</th>
           </tr>
         </thead>
         <tbody>
@@ -79,10 +79,10 @@ export const PriorityTriageTable = ({ riskData = [], selectedClusterId, onSelect
                 </td>
                 <td style={{ fontWeight: 600 }}>
                   <span style={{ 
-                    color: row.action_code === 'EMERGENCY_DISPATCH' ? 'var(--risk-critical)' : 'var(--text-main)',
+                    color: (riskLevel === 'CRITICAL' || riskLevel === 'SEVERE') ? 'var(--risk-critical)' : riskLevel === 'HIGH' ? 'var(--risk-high)' : 'var(--text-main)',
                     fontSize: '0.78rem'
                   }}>
-                    {row.action_code}
+                    {row.action_directive || row.action_code?.replace(/_/g, ' ')}
                   </span>
                 </td>
               </tr>

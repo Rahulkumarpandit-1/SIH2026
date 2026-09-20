@@ -32,6 +32,8 @@ class RawObservationBase(BaseModel):
     frp: float = Field(default=0.0, ge=0.0, description="Fire Radiative Power in Megawatts (MW)")
     daynight: Literal["D", "N"] = Field(default="N", description="D=Day pass, N=Night pass")
     stream_type: str = Field(default="historical", description="Stream categorization: 'historical' or 'near_real_time'")
+    state: Optional[str] = Field(default="Gujarat", description="Indian state name")
+    region_code: Optional[str] = Field(default="WEST_GUJARAT", description="Monitored corridor region code")
 
     @field_validator("acq_time", mode="before")
     @classmethod
@@ -230,6 +232,7 @@ class DataRefreshStatusResponse(BaseModel):
     last_success: Optional[str] = None
     last_checked: Optional[str] = None
     next_scheduled_refresh: Optional[str] = None
+    next_satellite_check_seconds: Optional[int] = None
     new_observations: int = 0
     duplicates: int = 0
     duration_seconds: float = 0.0
@@ -251,6 +254,7 @@ class DashboardSummaryResponse(BaseModel):
     last_data_update: Optional[str] = None
     last_refresh_time: Optional[str] = None
     next_refresh_time: Optional[str] = None
+    next_satellite_check_seconds: Optional[int] = None
     live_observations_count: int = 0
     historical_observations_count: int = 0
     monitoring_mode: str = "NEAR_REAL_TIME"
@@ -365,5 +369,387 @@ class AbnormalityDetectionResult(BaseModel):
     narrative: str = Field(..., description="Synthesized plain-language diagnostic narrative")
 
 
+class GroundTruthLabelCreate(BaseModel):
+    """Schema for submitting an analyst review label."""
+    incident_uuid: str = Field(..., description="Unique incident identifier or cluster ID")
+    facility_name: str = Field(..., description="Industrial facility name")
+    assigned_label: Literal["TRUE_FIRE", "FALSE_ALARM", "CONTROLLED_FLARING", "MAINTENANCE_ACTIVITY"] = Field(..., description="Standardized operational label")
+    reviewer_name: str = Field(..., min_length=2, description="Name of reviewing analyst")
+    review_notes: Optional[str] = Field(default=None, description="Verification evidence and rationale")
 
+    @field_validator("reviewer_name")
+    @classmethod
+    def validate_reviewer_name(cls, v: str) -> str:
+        if not v or not isinstance(v, str) or len(v.strip()) < 2:
+            raise ValueError("Reviewer name is required and must be at least 2 characters.")
+        clean = v.strip()
+        if clean.lower() in ["anonymous", "anon", "unknown", "n/a", "none"]:
+            raise ValueError("Anonymous reviews are prohibited. A verified analyst name is required for training governance.")
+        return clean
+
+
+class GroundTruthLabelUpdate(BaseModel):
+    """Schema for updating an existing analyst review label."""
+    assigned_label: Optional[Literal["TRUE_FIRE", "FALSE_ALARM", "CONTROLLED_FLARING", "MAINTENANCE_ACTIVITY"]] = None
+    reviewer_name: Optional[str] = None
+    review_notes: Optional[str] = None
+
+    @field_validator("reviewer_name")
+    @classmethod
+    def validate_reviewer_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not isinstance(v, str) or len(v.strip()) < 2:
+            raise ValueError("Reviewer name must be at least 2 characters.")
+        clean = v.strip()
+        if clean.lower() in ["anonymous", "anon", "unknown", "n/a", "none"]:
+            raise ValueError("Anonymous reviews are prohibited. A verified analyst name is required for training governance.")
+        return clean
+
+
+class GroundTruthLabelResponse(BaseModel):
+    """Schema representing persisted ground truth label."""
+    id: int
+    incident_uuid: str
+    facility_name: str
+    assigned_label: str
+    reviewer_name: str
+    review_notes: Optional[str] = None
+    original_label: Optional[str] = None
+    is_edited: bool = False
+    edit_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ReviewAuditLogResponse(BaseModel):
+    """Schema representing an immutable review audit trail event."""
+    id: int
+    incident_uuid: str
+    label_id: Optional[int] = None
+    facility_name: str
+    action_type: str  # CREATE, UPDATE
+    reviewer_name: str
+    previous_label: Optional[str] = None
+    new_label: str
+    notes: Optional[str] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ReviewerStatItem(BaseModel):
+    """Aggregated statistics for an individual human reviewer."""
+    reviewer_name: str
+    total_reviews: int
+    reviews_by_class: Dict[str, int]
+    daily_review_count: List[Dict[str, Any]]
+    last_active: Optional[str] = None
+    edit_count: int = 0
+
+
+class ReviewerAnalyticsResponse(BaseModel):
+    """Response schema for reviewer leaderboard and overall activity."""
+    total_active_reviewers: int
+    leaderboard: List[ReviewerStatItem]
+    summary: Dict[str, Any]
+
+
+class DatasetQualityResponse(BaseModel):
+    """Response schema for dataset quality, coverage, and distribution telemetry."""
+    total_incidents: int
+    total_labeled_incidents: int
+    verified_coverage_pct: float
+    label_distribution: Dict[str, int]
+    labels_per_reviewer: Dict[str, int]
+    region_distribution: Dict[str, int]
+    facility_distribution: List[Dict[str, Any]]
+    last_7_day_trend: List[Dict[str, Any]]
+    edited_labels_count: int
+    data_integrity_score: float
+
+
+class TrainingReadinessResponse(BaseModel):
+    """Response schema for scientific ML training readiness evaluation."""
+    readiness_state: Literal["NOT_READY", "LIMITED_TRAINING", "PRODUCTION_READY"]
+    readiness_score: float
+    is_trainable: bool
+    dimensions: Dict[str, float]
+    dimension_telemetry: Dict[str, Any]
+    explanation: str
+    bottlenecks: List[str]
+    recommendation: str
+
+
+class MLDatasetSummaryResponse(BaseModel):
+    """Schema for ML dataset builder summary."""
+    total_samples: int
+    labeled_count: int
+    unlabeled_count: int
+    feature_count: int
+    label_distribution: Dict[str, int]
+    features: List[Dict[str, Any]]
+    dataset_file: str
+    generated_at: str
+
+
+class MonitoredRegionResponse(BaseModel):
+    """Schema representing an operational monitored industrial region/corridor."""
+    region_code: str
+    name: str
+    short_name: Optional[str] = None
+    states_covered: str
+    bbox: List[float]
+    center: List[float]
+    default_zoom: int
+    description: str
+    icon: Optional[str] = None
+    is_active: bool = True
+    facility_count: int = 0
+
+
+class ExposureAssetResponse(BaseModel):
+    """Schema representing a critical exposure asset / receptor."""
+    asset_id: str
+    name: str
+    region_code: str
+    state: str
+    category: str
+    sub_type: str
+    criticality: str
+    latitude: float
+    longitude: float
+    description: Optional[str] = None
+    source: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+# ==============================================================================
+# PHASE 12 — TEMPORAL INTELLIGENCE, INCIDENT REGISTRY & TIMELINE SCHEMAS
+# ==============================================================================
+
+class TemporalIntelligenceResult(BaseModel):
+    """Observation-derived temporal metrics and freshness indicators."""
+    first_detected: str = Field(..., description="Earliest satellite detection timestamp (ISO UTC)")
+    last_detected: str = Field(..., description="Most recent satellite detection timestamp (ISO UTC)")
+    incident_age_hours: float = Field(..., description="Elapsed hours since first satellite observation")
+    active_duration_hours: float = Field(..., description="Observed combustion span in hours")
+    detection_count: int = Field(..., description="Total satellite detections contributing to incident")
+    observation_freshness_minutes: float = Field(..., description="Elapsed minutes since latest satellite pass")
+    temporal_status: Literal["RECENTLY_OBSERVED", "RECENT", "HISTORICAL"] = Field(
+        ..., 
+        description="Observation-derived temporal status: RECENTLY_OBSERVED (<=6h), RECENT (6-24h), HISTORICAL (>24h)"
+    )
+    is_recently_observed: bool = Field(..., description="True if latest observation occurred within 6 hours")
+    scientific_disclosure: str = Field(
+        default="Status is derived strictly from latest available satellite overpass (NASA FIRMS) and does not represent real-time physical ground truth.",
+        description="Mandatory scientific disclaimer on observation latency"
+    )
+    reference_time: Optional[str] = Field(default=None, description="Reference anchor timestamp used for freshness calculation")
+
+
+class IncidentSummaryResponse(BaseModel):
+    """Persistent incident registry summary schema."""
+    incident_uuid: str
+    cluster_id: Optional[str] = None
+    facility_name: str
+    state: str
+    region_code: str
+    first_detected: datetime
+    last_detected: datetime
+    risk_score: float
+    risk_level: Optional[str] = "LOW"
+    action_code: Optional[str] = "BACKGROUND_LOG"
+    abnormality_score: float = 0.0
+    temporal_status: str
+    detection_count: int
+    status: Literal["NEW", "UNDER_REVIEW", "VERIFIED_FIRE", "FALSE_ALARM", "CONTROLLED_FLARING", "ARCHIVED"]
+    centroid_lat: Optional[float] = None
+    centroid_lon: Optional[float] = None
+    peak_frp: Optional[float] = 0.0
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class IncidentDetailResponse(IncidentSummaryResponse):
+    """Detailed incident report including temporal, atmospheric, and exposure context."""
+    temporal_intelligence: Optional[TemporalIntelligenceResult] = None
+    telemetry: Optional[Dict[str, Any]] = None
+    weather_context: Optional[Dict[str, Any]] = None
+    exposure_context: Optional[Dict[str, Any]] = None
+    facility_fingerprint: Optional[Dict[str, Any]] = None
+    abnormality_detection: Optional[Dict[str, Any]] = None
+
+
+class TimelineEvent(BaseModel):
+    """Individual chronological event in incident investigation timeline."""
+    timestamp: str
+    time_display: str
+    event_type: str
+    title: str
+    description: str
+    badge_type: str = "info"
+    severity: str = "INFO"
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class IncidentTimelineResponse(BaseModel):
+    """Chronological event stream for an incident."""
+    incident_uuid: str
+    facility_name: str
+    region_code: str
+    state: str
+    status: str
+    temporal_status: str
+    first_detected: str
+    last_detected: str
+    total_events: int
+    events: List[TimelineEvent]
+    scientific_disclosure: str
+
+
+class FacilityHistoryResponse(BaseModel):
+    """Longitudinal historical intelligence profile for an industrial facility."""
+    facility_name: str
+    facility_type: Optional[str] = None
+    region_code: str
+    state: str
+    total_incidents: int
+    verified_fires: int
+    false_alarms: int
+    controlled_flaring: int
+    under_review: int
+    new_incidents: int
+    average_risk_score: float
+    average_abnormality_score: float
+    average_frp: float
+    highest_recorded_frp: float
+    last_incident_date: Optional[str] = None
+    historical_incidents: List[Dict[str, Any]] = []
+
+
+class IncidentStatusUpdate(BaseModel):
+    """Payload to transition incident investigation lifecycle status."""
+    status: Literal["NEW", "UNDER_REVIEW", "VERIFIED_FIRE", "FALSE_ALARM", "CONTROLLED_FLARING", "ARCHIVED"]
+
+
+# ==============================================================================
+# PHASE 13 — EXPLAINABLE RISK INTELLIGENCE & DECISION SUPPORT SCHEMAS
+# ==============================================================================
+
+class RiskContributor(BaseModel):
+    """Explainable risk factor contribution."""
+    factor: str
+    value: float
+    percent: float
+    description: Optional[str] = None
+
+
+class RiskAttributionResponse(BaseModel):
+    """Itemized breakdown of factors contributing to incident risk score."""
+    incident_uuid: str
+    risk_score: float
+    risk_level: str
+    contributors: List[RiskContributor]
+    primary_factor: str
+    explanation: str
+
+
+class AbnormalityComponentBreakdown(BaseModel):
+    """Fractional point score for an abnormality evaluation dimension."""
+    name: str
+    score: float
+    weight: float
+    points: float
+    max_points: float
+    contribution_percent: float
+    status: str
+    detail: str
+
+
+class AbnormalityBreakdownResponse(BaseModel):
+    """Multi-dimensional abnormality diagnostic breakdown."""
+    incident_uuid: str
+    abnormality_score: float
+    abnormality_status: str
+    components: List[AbnormalityComponentBreakdown]
+    intensity_ratio: float
+    growth_trend: str
+    persistence_excess_pct: float
+    recurrence_ratio: float
+    narrative: str
+    plain_language_explanation: str
+
+
+class SimilarIncidentPrecedent(BaseModel):
+    """Historical incident precedent with similarity metrics."""
+    incident_uuid: str
+    cluster_id: Optional[str] = None
+    facility: str
+    facility_type: str
+    similarity_score: float
+    risk_score: float
+    risk_level: str
+    peak_frp: float
+    abnormality_score: float
+    status: str
+    temporal_status: str
+    first_detected: str
+    last_detected: str
+    similarity_breakdown: Optional[Dict[str, float]] = None
+
+
+class SimilarIncidentsResponse(BaseModel):
+    """Top historically similar incident precedents."""
+    incident_uuid: str
+    facility: str
+    target_risk_score: float
+    target_frp: float
+    target_abnormality_score: float
+    similar_incidents: List[SimilarIncidentPrecedent]
+
+
+class FacilityRiskProfileResponse(BaseModel):
+    """Facility-level longitudinal risk and compliance profile."""
+    facility_name: str
+    facility_type: str
+    region_code: str
+    state: str
+    total_incidents: int
+    verified_fires: int
+    false_alarms: int
+    controlled_flaring: int
+    under_review: int
+    new_incidents: int
+    average_risk_score: float
+    average_abnormality_score: float
+    peak_frp: float
+    baseline_frp: float
+    last_incident_date: Optional[str] = None
+    historical_trend: str
+    trend_description: str
+    risk_tier: str
+    historical_precedents: List[Dict[str, Any]] = []
+
+
+class ExecutiveSummaryResponse(BaseModel):
+    """Concise analyst-ready incident summary grounded in telemetry."""
+    incident_uuid: str
+    facility_name: str
+    risk_level: str
+    risk_score: float
+    abnormality_status: str
+    abnormality_score: float
+    action_code: str
+    confidence_level: str = Field(default="Satellite Observation Confidence Only", description="Observation confidence disclaimer")
+    ground_verification: str = Field(default="Not Available Unless Analyst Reviewed", description="Ground truth audit status")
+    recommendation_statement: str = Field(
+        default="This recommendation is based solely on satellite-observed thermal anomalies and supporting analytical models. Ground verification is required before operational response decisions.",
+        description="Mandatory scientific disclaimer"
+    )
+    executive_summary: str
+    key_bullet_points: List[str]
+    evidence_telemetry: Dict[str, Any]
+    generated_at: str
 

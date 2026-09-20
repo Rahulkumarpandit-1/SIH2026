@@ -34,7 +34,34 @@ class SpatialProximityEngine:
     """
 
     def __init__(self, industrial_gdf: gpd.GeoDataFrame):
-        self.industrial_gdf = industrial_gdf
+        self.industrial_gdf = industrial_gdf.copy() if (industrial_gdf is not None and not industrial_gdf.empty) else gpd.GeoDataFrame()
+
+        # Inject known national industrial facilities across all Indian corridors
+        try:
+            from app.scoring.facility_fingerprint import FacilityFingerprintEngine
+            known_rows = []
+            for fac_name, fac_info in FacilityFingerprintEngine.KNOWN_BASELINES.items():
+                f_lat = fac_info.get("latitude")
+                f_lon = fac_info.get("longitude")
+                if f_lat and f_lon:
+                    known_rows.append({
+                        "name": fac_name,
+                        "industrial": fac_info.get("facility_type", "industrial"),
+                        "landuse": "industrial",
+                        "osm_id": f"national_{fac_name[:20].lower().replace(' ', '_')}",
+                        "geometry": Point(f_lon, f_lat).buffer(0.006)  # ~650m physical perimeter
+                    })
+            if known_rows:
+                extra_gdf = gpd.GeoDataFrame(known_rows, crs="EPSG:4326")
+                if not self.industrial_gdf.empty:
+                    if self.industrial_gdf.crs is None:
+                        self.industrial_gdf = self.industrial_gdf.set_crs(epsg=4326)
+                    self.industrial_gdf = pd.concat([self.industrial_gdf, extra_gdf], ignore_index=True)
+                else:
+                    self.industrial_gdf = extra_gdf
+        except Exception as e:
+            logger.debug(f"Could not inject KNOWN_BASELINES into spatial proximity: {e}")
+
         if self.industrial_gdf.empty:
             logger.warning("SpatialProximityEngine initialized with empty industrial GeoDataFrame.")
             self.sindex = None

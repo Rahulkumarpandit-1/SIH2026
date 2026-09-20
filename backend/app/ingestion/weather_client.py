@@ -77,7 +77,7 @@ class WeatherClient:
         }
 
         try:
-            with httpx.Client(timeout=6.0) as client:
+            with httpx.Client(timeout=1.8) as client:
                 res = client.get(cls.BASE_URL, params=params)
                 res.raise_for_status()
                 curr = res.json().get("current", {})
@@ -112,7 +112,7 @@ class WeatherClient:
 
         except Exception as e:
             logger.warning(f"Open-Meteo fetch failed for ({lat}, {lon}): {e}. Using resilient baseline fallback.")
-            return {
+            fallback_data = {
                 "wind_speed_kmh": 14.0,
                 "wind_direction_deg": 220,
                 "wind_cardinal": "SW",
@@ -126,3 +126,7 @@ class WeatherClient:
                 "source": "Fallback Baseline",
                 "timestamp_utc": None
             }
+            # Cache fallback for 5 minutes so subsequent pipeline calls don't repeatedly block on network timeouts
+            cls._cache[cache_key] = {"cached_at": now, "data": fallback_data}
+            return fallback_data
+

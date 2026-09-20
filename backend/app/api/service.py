@@ -22,6 +22,7 @@ from app.spatial.proximity import SpatialProximityEngine
 from app.spatial.clustering import SpatioTemporalClusterer
 from app.spatial.persistence import PersistenceEngine
 from app.scoring.risk_engine import RiskScoringEngine
+from app.scoring.facility_fingerprint import FacilityFingerprintEngine
 from app.scoring.classifier import (
     CLASS_LABELS,
     FEATURE_COLUMNS,
@@ -79,11 +80,31 @@ class PipelineService:
     @classmethod
     def get_refresh_status(cls) -> Dict[str, Any]:
         """Returns the current operational state of the near-real-time refresh job."""
-        # Calculate dynamic next refresh if missing
         st = dict(cls._last_refresh_status)
-        if not st.get("next_scheduled_refresh"):
-            now = datetime.now(timezone.utc)
-            st["next_scheduled_refresh"] = (now + timedelta(minutes=settings.LIVE_REFRESH_INTERVAL_MINUTES)).isoformat()
+        now = datetime.now(timezone.utc)
+        interval_mins = max(1, settings.LIVE_REFRESH_INTERVAL_MINUTES)
+
+        # Parse or recalculate next_scheduled_refresh to ensure it is always in the future
+        next_dt: Optional[datetime] = None
+        next_raw = st.get("next_scheduled_refresh")
+        if next_raw:
+            try:
+                parsed = datetime.fromisoformat(str(next_raw))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                if parsed > now:
+                    next_dt = parsed
+            except Exception:
+                next_dt = None
+
+        if next_dt is None:
+            # Advance to the next future scheduled check cycle
+            next_dt = now + timedelta(minutes=interval_mins)
+            st["next_scheduled_refresh"] = next_dt.isoformat()
+
+        # Non-negative countdown calculation strictly guaranteed
+        remaining_secs = max(0, int((next_dt - now).total_seconds()))
+        st["next_satellite_check_seconds"] = remaining_secs
         return st
 
     @classmethod
@@ -122,7 +143,9 @@ class PipelineService:
                 "daynight": obs.daynight,
                 "satellite": obs.satellite,
                 "instrument": obs.instrument,
-                "stream_type": getattr(obs, "stream_type", "historical") or "historical"
+                "stream_type": getattr(obs, "stream_type", "historical") or "historical",
+                "state": getattr(obs, "state", "Gujarat") or "Gujarat",
+                "region_code": getattr(obs, "region_code", "WEST_GUJARAT") or "WEST_GUJARAT"
             })
         df_obs = pd.DataFrame(data)
 
@@ -131,9 +154,13 @@ class PipelineService:
         builder.register_known_historical_ground_truth()
         enriched_df = builder.process_and_enrich_observations(df_obs)
 
-        # Ensure stream_type is preserved in enriched_df
+        # Ensure stream_type, state, and region_code are preserved in enriched_df
         if "stream_type" not in enriched_df.columns and "stream_type" in df_obs.columns:
             enriched_df["stream_type"] = df_obs["stream_type"]
+        if "state" not in enriched_df.columns and "state" in df_obs.columns:
+            enriched_df["state"] = df_obs["state"]
+        if "region_code" not in enriched_df.columns and "region_code" in df_obs.columns:
+            enriched_df["region_code"] = df_obs["region_code"]
 
         # 2. Persistence Analysis on Cluster Summary
         persistence_engine = PersistenceEngine(persistence_threshold=0.5)
@@ -141,6 +168,19 @@ class PipelineService:
 
         # 3. Multi-Signal Risk Scoring (Phase 4)
         scored_clusters_df = RiskScoringEngine.score_clusters_dataframe(cluster_summary_df)
+
+        # Attach region_code / state to scored_clusters_df from constituent observations
+        if not scored_clusters_df.empty and "cluster_id" in scored_clusters_df.columns and "cluster_id" in enriched_df.columns:
+            cluster_meta = enriched_df.groupby("cluster_id").agg({
+                "region_code": lambda s: s.iloc[0] if len(s) > 0 else "WEST_GUJARAT",
+                "state": lambda s: s.iloc[0] if len(s) > 0 else "Gujarat"
+            }).to_dict(orient="index")
+            scored_clusters_df["region_code"] = scored_clusters_df["cluster_id"].map(
+                lambda cid: cluster_meta.get(cid, {}).get("region_code", "WEST_GUJARAT")
+            )
+            scored_clusters_df["state"] = scored_clusters_df["cluster_id"].map(
+                lambda cid: cluster_meta.get(cid, {}).get("state", "Gujarat")
+            )
 
         # 3.5. Meteorological Context Enrichment (Open-Meteo)
         from concurrent.futures import ThreadPoolExecutor
@@ -209,6 +249,44 @@ class PipelineService:
             abnormality_detections.append(abnormality)
         scored_clusters_df["abnormality_detection"] = abnormality_detections
 
+        # 3.9. Temporal Intelligence & Persistent Incident Registry (Phase 12)
+        from app.analytics.temporal_engine import TemporalEngine
+        from app.services.incident_registry import IncidentRegistryService
+
+        temporal_intelligences = []
+        for _, row in scored_clusters_df.iterrows():
+            cid = str(row["cluster_id"])
+            c_obs = enriched_df[enriched_df["cluster_id"] == cid]
+            t_intel = TemporalEngine.evaluate_cluster_dataframe(c_obs)
+            temporal_intelligences.append(t_intel)
+        scored_clusters_df["temporal_intelligence"] = temporal_intelligences
+        scored_clusters_df["temporal_status"] = [t["temporal_status"] for t in temporal_intelligences]
+        scored_clusters_df["first_detected"] = [t["first_detected"] for t in temporal_intelligences]
+        scored_clusters_df["last_detected"] = [t["last_detected"] for t in temporal_intelligences]
+        scored_clusters_df["incident_age_hours"] = [t["incident_age_hours"] for t in temporal_intelligences]
+        scored_clusters_df["active_duration_hours"] = [t["active_duration_hours"] for t in temporal_intelligences]
+        scored_clusters_df["observation_freshness_minutes"] = [t["observation_freshness_minutes"] for t in temporal_intelligences]
+
+        # Sync with Persistent Incident Registry in DB
+        try:
+            incidents = IncidentRegistryService.sync_incidents_from_clusters(
+                db=db,
+                clusters_df=scored_clusters_df,
+                enriched_obs_df=enriched_df
+            )
+            uuid_map = {inc.cluster_id: inc.incident_uuid for inc in incidents if inc.cluster_id}
+            status_map = {inc.cluster_id: inc.status for inc in incidents if inc.cluster_id}
+            scored_clusters_df["incident_uuid"] = scored_clusters_df["cluster_id"].map(
+                lambda cid: uuid_map.get(cid, cid)
+            )
+            scored_clusters_df["status"] = scored_clusters_df["cluster_id"].map(
+                lambda cid: status_map.get(cid, "NEW")
+            )
+        except Exception as e:
+            logger.warning(f"Error syncing incident registry: {e}")
+            scored_clusters_df["incident_uuid"] = scored_clusters_df["cluster_id"]
+            scored_clusters_df["status"] = "NEW"
+
         # Merge cluster-level risk score and classification back to observation level
         risk_map = scored_clusters_df.set_index("cluster_id")[
             ["risk_score", "risk_level", "incident_classification", "action_code"]
@@ -229,7 +307,9 @@ class PipelineService:
 
         # 4. Prepare OSM GeoJSON for the frontend map layer
         osm_client = OSMClient()
-        industrial_gdf = osm_client.fetch_industrial_features(bbox=settings.default_bbox)
+        base_gdf = osm_client.fetch_industrial_features(bbox=settings.default_bbox)
+        proximity_engine = SpatialProximityEngine(base_gdf)
+        industrial_gdf = proximity_engine.industrial_gdf
         try:
             osm_geojson_str = industrial_gdf.to_json()
             osm_geojson = json.loads(osm_geojson_str)
@@ -245,6 +325,104 @@ class PipelineService:
         cls._cached_data = result
         cls._cached_record_count = current_count
         return result
+
+    @classmethod
+    def get_filtered_analyzed_data(
+        cls,
+        db: Session,
+        region: Optional[str] = None,
+        state: Optional[str] = None,
+        force_refresh: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Retrieves base analyzed data and filters by regional corridor or state.
+        Executes in sub-millisecond time from cached pipeline structures.
+        """
+        base_data = cls.get_analyzed_data(db, force_refresh=force_refresh)
+        obs_df = base_data["observations_df"]
+        clusters_df = base_data["clusters_df"]
+        osm_geojson = base_data["osm_geojson"]
+
+        if obs_df.empty:
+            return base_data
+
+        filtered_obs = obs_df.copy()
+        filtered_clusters = clusters_df.copy()
+
+        norm_region = region.strip().upper() if region else None
+        if norm_region and norm_region not in ["ALL", "ALL_INDIA"]:
+            if "region_code" in filtered_obs.columns:
+                filtered_obs = filtered_obs[filtered_obs["region_code"] == norm_region]
+            if "region_code" in filtered_clusters.columns:
+                filtered_clusters = filtered_clusters[filtered_clusters["region_code"] == norm_region]
+            else:
+                valid_cids = set(filtered_obs["cluster_id"].unique())
+                filtered_clusters = filtered_clusters[filtered_clusters["cluster_id"].isin(valid_cids)]
+
+        if state and state.strip().lower() != "all":
+            state_clean = state.strip().lower()
+            if "state" in filtered_obs.columns:
+                filtered_obs = filtered_obs[filtered_obs["state"].str.lower() == state_clean]
+            if "state" in filtered_clusters.columns:
+                filtered_clusters = filtered_clusters[filtered_clusters["state"].str.lower() == state_clean]
+            else:
+                valid_cids = set(filtered_obs["cluster_id"].unique())
+                filtered_clusters = filtered_clusters[filtered_clusters["cluster_id"].isin(valid_cids)]
+
+        return {
+            "observations_df": filtered_obs,
+            "clusters_df": filtered_clusters,
+            "osm_geojson": osm_geojson
+        }
+
+    @classmethod
+    def get_monitored_regions(cls, db: Session) -> List[Dict[str, Any]]:
+        """Returns catalog of operational industrial corridors across India."""
+        from app.core.regions import get_all_regions
+        from app.db.db_models import MonitoredRegionModel
+        
+        try:
+            cnt = db.query(MonitoredRegionModel).count()
+            if cnt == 0:
+                for reg in get_all_regions():
+                    row = MonitoredRegionModel(
+                        region_code=reg["region_code"],
+                        name=reg["name"],
+                        states_covered=reg["states_covered"],
+                        min_lon=reg["bbox"][0],
+                        min_lat=reg["bbox"][1],
+                        max_lon=reg["bbox"][2],
+                        max_lat=reg["bbox"][3],
+                        center_lat=reg["center"][0],
+                        center_lon=reg["center"][1],
+                        default_zoom=reg["default_zoom"],
+                        is_active=True,
+                        facility_count=8 if reg["region_code"] == "WEST_GUJARAT" else 5
+                    )
+                    db.add(row)
+                db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"Region seeding fallback: {e}")
+
+        return get_all_regions()
+
+    @classmethod
+    def get_facility_directory(cls, db: Session, region: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Returns national industrial facilities with thermal profiles."""
+        FacilityFingerprintEngine.seed_database_profiles(db)
+        baselines = FacilityFingerprintEngine.KNOWN_BASELINES
+        results = []
+        norm_reg = region.strip().upper() if region else None
+        for name, prof in baselines.items():
+            reg_code = prof.get("region_code", "WEST_GUJARAT")
+            if norm_reg and norm_reg not in ["ALL", "ALL_INDIA"] and reg_code != norm_reg:
+                continue
+            item = dict(prof)
+            item["facility_name"] = name
+            results.append(item)
+        return results
+
 
     @classmethod
     def get_ground_truth_feed(cls, db: Session) -> List[Dict[str, Any]]:
@@ -674,3 +852,131 @@ class PipelineService:
                 "review_notes": prov.review_notes
             })
         return items
+
+    @classmethod
+    def get_incident_detail(cls, db: Session, incident_uuid: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves comprehensive incident detail including temporal intelligence,
+        atmospheric context, geospatial exposure, baseline fingerprint, and abnormality analysis.
+        Supports lookup by persistent incident_uuid or transient cluster_id.
+        """
+        from app.services.incident_registry import IncidentRegistryService
+        from app.analytics.temporal_engine import TemporalEngine
+
+        # Find in registry
+        inc = IncidentRegistryService.get_incident_by_uuid(db, incident_uuid)
+        if not inc:
+            inc = IncidentRegistryService.get_incident_by_cluster_id(db, incident_uuid)
+
+        # Get pipeline analyzed clusters
+        pipeline_data = cls.get_analyzed_data(db)
+        clusters_df = pipeline_data["clusters_df"]
+        enriched_df = pipeline_data["observations_df"]
+
+        matched_row = None
+        if not clusters_df.empty:
+            if inc and inc.cluster_id:
+                m = clusters_df[clusters_df["cluster_id"] == inc.cluster_id]
+                if not m.empty:
+                    matched_row = m.iloc[0].to_dict()
+            if matched_row is None:
+                m = clusters_df[clusters_df["cluster_id"] == incident_uuid]
+                if not m.empty:
+                    matched_row = m.iloc[0].to_dict()
+
+        if inc is None and matched_row is None:
+            return None
+
+        # Build response dict
+        cid = matched_row.get("cluster_id") if matched_row else (inc.cluster_id if inc else incident_uuid)
+        uuid_val = inc.incident_uuid if inc else cid
+        fac_name = inc.facility_name if inc else matched_row.get("nearest_facility_name", "Industrial Facility")
+        state_val = inc.state if inc else matched_row.get("state", "Gujarat")
+        reg_code = inc.region_code if inc else matched_row.get("region_code", "WEST_GUJARAT")
+
+        # Telemetry
+        telemetry = {}
+        if matched_row:
+            telemetry = {
+                "max_frp": float(matched_row.get("max_frp", 0.0)),
+                "avg_frp": float(matched_row.get("avg_frp", 0.0)),
+                "max_brightness": float(matched_row.get("max_brightness", 300.0)),
+                "distance_to_industry_meters": float(matched_row.get("distance_to_industry_meters", 0.0)),
+                "persistence_ratio": float(matched_row.get("persistence_ratio", 0.0)),
+                "active_days_count": int(matched_row.get("active_days_count", 1)),
+                "is_anomaly_spike": bool(matched_row.get("is_anomaly_spike", False)),
+                "total_detections": int(matched_row.get("total_detections", 1))
+            }
+        elif inc:
+            telemetry = {
+                "max_frp": inc.peak_frp or 15.0,
+                "avg_frp": inc.peak_frp or 15.0,
+                "max_brightness": 320.0,
+                "distance_to_industry_meters": 0.0,
+                "persistence_ratio": 0.5,
+                "active_days_count": 1,
+                "is_anomaly_spike": False,
+                "total_detections": inc.detection_count
+            }
+
+        # Temporal intelligence
+        temporal_intel = matched_row.get("temporal_intelligence") if matched_row else None
+        if not temporal_intel:
+            c_obs = enriched_df[enriched_df["cluster_id"] == cid] if not enriched_df.empty and cid in enriched_df["cluster_id"].values else pd.DataFrame()
+            if not c_obs.empty:
+                temporal_intel = TemporalEngine.evaluate_cluster_dataframe(c_obs)
+            elif inc:
+                temporal_intel = {
+                    "first_detected": inc.first_detected.isoformat(),
+                    "last_detected": inc.last_detected.isoformat(),
+                    "incident_age_hours": round(max(0.0, (datetime.now(timezone.utc) - inc.first_detected.replace(tzinfo=timezone.utc)).total_seconds() / 3600.0), 2),
+                    "active_duration_hours": round(max(0.0, (inc.last_detected - inc.first_detected).total_seconds() / 3600.0), 2),
+                    "detection_count": inc.detection_count,
+                    "observation_freshness_minutes": round(max(0.0, (datetime.now(timezone.utc) - inc.last_detected.replace(tzinfo=timezone.utc)).total_seconds() / 60.0), 1),
+                    "temporal_status": inc.temporal_status,
+                    "is_recently_observed": (inc.temporal_status == "RECENTLY_OBSERVED"),
+                    "scientific_disclosure": TemporalEngine.SCIENTIFIC_DISCLOSURE,
+                    "reference_time": datetime.now(timezone.utc).isoformat()
+                }
+
+        first_dt = inc.first_detected if inc else (datetime.fromisoformat(temporal_intel["first_detected"]) if temporal_intel else datetime.now(timezone.utc))
+        last_dt = inc.last_detected if inc else (datetime.fromisoformat(temporal_intel["last_detected"]) if temporal_intel else datetime.now(timezone.utc))
+        risk_score = inc.risk_score if inc else float(matched_row.get("risk_score", 0.0))
+        risk_level = inc.risk_level if inc else str(matched_row.get("risk_level", "LOW"))
+        action_code = inc.action_code if inc else str(matched_row.get("action_code", "BACKGROUND_LOG"))
+        abnormality_score = inc.abnormality_score if inc else (matched_row.get("abnormality_detection", {}).get("abnormality_score", 0.0) if matched_row else 0.0)
+        temp_status = inc.temporal_status if inc else (temporal_intel.get("temporal_status", "HISTORICAL") if temporal_intel else "HISTORICAL")
+        status_val = inc.status if inc else "NEW"
+        c_lat = inc.centroid_lat if inc else float(matched_row.get("centroid_lat", 22.0))
+        c_lon = inc.centroid_lon if inc else float(matched_row.get("centroid_lon", 71.0))
+        peak_frp = inc.peak_frp if inc else float(matched_row.get("max_frp", 0.0))
+        created_at = inc.created_at if inc else first_dt
+        updated_at = inc.updated_at if inc else last_dt
+
+        return {
+            "incident_uuid": uuid_val,
+            "cluster_id": cid,
+            "facility_name": fac_name,
+            "state": state_val,
+            "region_code": reg_code,
+            "first_detected": first_dt,
+            "last_detected": last_dt,
+            "risk_score": round(risk_score, 2),
+            "risk_level": risk_level,
+            "action_code": action_code,
+            "abnormality_score": round(abnormality_score, 2),
+            "temporal_status": temp_status,
+            "detection_count": inc.detection_count if inc else (temporal_intel.get("detection_count", 1) if temporal_intel else 1),
+            "status": status_val,
+            "centroid_lat": c_lat,
+            "centroid_lon": c_lon,
+            "peak_frp": peak_frp,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "temporal_intelligence": temporal_intel,
+            "telemetry": telemetry,
+            "weather_context": matched_row.get("weather_context") if matched_row else {},
+            "exposure_context": matched_row.get("exposure_context") if matched_row else {},
+            "facility_fingerprint": matched_row.get("facility_fingerprint") if matched_row else {},
+            "abnormality_detection": matched_row.get("abnormality_detection") if matched_row else {}
+        }

@@ -6,12 +6,23 @@ import {
 import L from 'leaflet';
 import { Eye, Layers, RotateCcw, ArrowRight, MapPin, Radio, Activity, Clock } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useRegion } from '../context/RegionContext';
 import { MAP_PROVIDERS } from '../services/mapConfig';
 import MapLayerControl from '../components/MapLayerControl';
 
-const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [] }) => {
+const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [], regionCenter, regionZoom, regionCode }) => {
   const map = useMap();
+  const centerLat = regionCenter?.[0];
+  const centerLon = regionCenter?.[1];
 
+  // Whenever corridor switches, ALWAYS fly to the selected region center & default zoom
+  useEffect(() => {
+    if (centerLat !== undefined && centerLon !== undefined && !isNaN(centerLat) && !isNaN(centerLon)) {
+      map.flyTo([centerLat, centerLon], regionZoom || 6, { duration: 1.4 });
+    }
+  }, [regionCode, centerLat, centerLon, regionZoom, map]);
+
+  // When targetCoords is specified (user clicked cluster), fly to that cluster
   useEffect(() => {
     if (targetCoords && targetCoords.length === 2 && !isNaN(targetCoords[0]) && !isNaN(targetCoords[1])) {
       map.flyTo(targetCoords, 13, { duration: 1.2 });
@@ -38,11 +49,8 @@ export const GISExplorerPage = ({
   onOpenIncidentDetail
 }) => {
   const { isDark } = useTheme();
-  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
-
-  useEffect(() => {
-    setLayerType(isDark ? 'dark' : 'streets');
-  }, [isDark]);
+  const { currentRegion } = useRegion();
+  const [layerType, setLayerType] = useState('satellite');
 
   const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
   const safeObs = Array.isArray(observations) ? observations : [];
@@ -70,14 +78,18 @@ export const GISExplorerPage = ({
     setSecondsAgo(0);
   }, [observations.length]);
 
+  // When active monitored corridor changes, reset targetCoords so map flies to the corridor view
   useEffect(() => {
-    if (safeRisk.length > 0 && !selectedCluster) {
+    setTargetCoords(null);
+    if (safeRisk.length > 0) {
       setSelectedCluster(safeRisk[0]);
+    } else {
+      setSelectedCluster(null);
     }
-  }, [safeRisk, selectedCluster]);
+  }, [currentRegion?.region_code]);
 
-  const defaultCenter = [22.2587, 71.1924];
-  const defaultZoom = 7;
+  const defaultCenter = currentRegion?.center || [21.7679, 78.8718];
+  const defaultZoom = currentRegion?.default_zoom || 5;
 
   const filteredClusters = useMemo(() => {
     return safeClusters.filter((item) => {
@@ -115,7 +127,7 @@ export const GISExplorerPage = ({
         <div>
           <div className="section-tag">GEOSPATIAL INTELLIGENCE WORKSPACE</div>
           <h1 className="section-heading-lg" style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>
-            GIS Explorer &bull; Gujarat Industrial Corridor
+            GIS Explorer &bull; {currentRegion?.name || 'National Industrial Corridors'}
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
             <span>Interactive geospatial analysis with NASA satellite pixels, DBSCAN centroids, and 3,970 OSM boundary polygons.</span>
@@ -198,8 +210,10 @@ export const GISExplorerPage = ({
           </div>
 
           <MapContainer
+            key={`gis-explorer-${currentRegion?.region_code || 'ALL_INDIA'}-${layerType}`}
             center={defaultCenter}
             zoom={defaultZoom}
+            preferCanvas={true}
             style={{ width: '100%', height: '100%', minHeight: '640px' }}
             scrollWheelZoom={true}
           >
@@ -207,6 +221,9 @@ export const GISExplorerPage = ({
               targetCoords={targetCoords} 
               triggerFitAll={triggerFitAll}
               clusters={filteredClusters}
+              regionCenter={currentRegion?.center}
+              regionZoom={currentRegion?.default_zoom}
+              regionCode={currentRegion?.region_code}
             />
 
             {/* Base Map Tiles */}

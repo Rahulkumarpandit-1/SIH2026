@@ -7,7 +7,7 @@ export const Footer = () => {
         <strong>SIH26162 &bull; Satellite Thermal Intelligence for Industrial Fire Detection</strong>
       </div>
       <div>
-        Telemetry: NASA FIRMS (VIIRS 375m / MODIS 1km) &bull; OpenStreetMap Overpass (3,970 Polygons) &bull; Gujarat Industrial Testbed
+        Telemetry: NASA FIRMS (VIIRS 375m / MODIS 1km) &bull; OpenStreetMap Overpass (3,970 Polygons) &bull; Multi-Region Industrial Coverage
       </div>
     </footer>
   );

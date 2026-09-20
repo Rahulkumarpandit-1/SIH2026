@@ -45,8 +45,9 @@ def test_hazira_sudden_spike_scores_critical():
 
     assert res["risk_score"] >= 80.0
     assert res["risk_level"] == "CRITICAL"
-    assert res["classification"] == "INDUSTRIAL_FIRE_OUTBREAK"
-    assert res["action_code"] == "EMERGENCY_DISPATCH"
+    assert res["classification"] in ["INDUSTRIAL_FIRE_OUTBREAK", "SEVERE_THERMAL_ANOMALY"]
+    assert res["action_code"] == "HIGH_PRIORITY_INVESTIGATION_REQUIRED"
+    assert res["legacy_action_code"] == "EMERGENCY_DISPATCH"
 
 
 def test_jamnagar_routine_flare_scores_moderate():
@@ -63,7 +64,7 @@ def test_jamnagar_routine_flare_scores_moderate():
     assert 30.0 <= res["risk_score"] < 60.0
     assert res["risk_level"] == "MODERATE"
     assert res["classification"] == "PERSISTENT_OPERATIONAL_SOURCE"
-    assert res["action_code"] == "ROUTINE_MONITORING"
+    assert res["action_code"] == "ANALYST_REVIEW_RECOMMENDED"
 
 
 def test_rural_agricultural_burn_scores_low():
@@ -80,7 +81,7 @@ def test_rural_agricultural_burn_scores_low():
     assert res["risk_score"] < 30.0
     assert res["risk_level"] == "LOW"
     assert res["classification"] == "NON_INDUSTRIAL_RURAL"
-    assert res["action_code"] == "BACKGROUND_LOG"
+    assert res["action_code"] == "ROUTINE_MONITORING_RECOMMENDED"
 
 
 def test_cluster_dataframe_scoring_and_sorting():

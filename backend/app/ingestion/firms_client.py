@@ -164,8 +164,14 @@ class FIRMSClient:
                 new_models.append(vm)
                 existing_keys.add(key)
 
+        from app.core.regions import tag_coordinates
+
         db_records: List[RawObservationModel] = []
         for vm in new_models:
+            calc_state, calc_region = tag_coordinates(vm.latitude, vm.longitude)
+            final_state = vm.state if (vm.state and vm.state != "Gujarat") else calc_state
+            final_region = vm.region_code if (vm.region_code and vm.region_code != "WEST_GUJARAT") else calc_region
+
             db_record = RawObservationModel(
                 latitude=vm.latitude,
                 longitude=vm.longitude,
@@ -182,7 +188,9 @@ class FIRMSClient:
                 bright_t31=vm.bright_t31,
                 frp=vm.frp,
                 daynight=vm.daynight,
-                stream_type=stream_type
+                stream_type=stream_type,
+                state=final_state,
+                region_code=final_region
             )
             db_records.append(db_record)
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X, RefreshCw } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import RegionSelector from './RegionSelector';
 
 export const Navbar = ({ 
   currentView, 
@@ -16,6 +17,7 @@ export const Navbar = ({
     { id: 'gis', label: 'GIS Explorer' },
     { id: 'historical', label: 'Historical Data' },
     { id: 'ml', label: 'Machine Learning' },
+    { id: 'ground-truth', label: 'Ground Truth' },
     { id: 'timeline', label: 'Timeline' },
     { id: 'methodology', label: 'Methodology' },
   ];
@@ -48,8 +50,9 @@ export const Navbar = ({
           ))}
         </div>
 
-        {/* Right Section: Theme Toggle & Status Indicator */}
-        <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        {/* Right Section: Region Selector, Theme Toggle & Status Indicator */}
+        <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <RegionSelector />
           <ThemeToggle />
 
           <div className="nav-status-indicator">
@@ -89,6 +92,11 @@ export const Navbar = ({
               {item.label}
             </button>
           ))}
+
+          {/* Mobile Region Selector Row */}
+          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+            <RegionSelector />
+          </div>
 
           {/* Mobile Theme Toggle Row */}
           <ThemeToggle variant="drawer" />

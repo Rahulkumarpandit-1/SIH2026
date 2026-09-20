@@ -41,7 +41,7 @@ export const HistoricalDataPage = () => {
   const [reviewerName, setReviewerName] = useState('Senior Remote Sensing Analyst');
   const [sourceCitation, setSourceCitation] = useState('DOC-VERIFIED-INCIDENT-LOG-2026');
   const [reviewConfidence, setReviewConfidence] = useState(0.95);
-  const [reviewNotes, setReviewNotes] = useState('Cross-referenced with official emergency dispatch registry.');
+  const [reviewNotes, setReviewNotes] = useState('Cross-referenced with verified ground truth logs.');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState(null);
 
@@ -199,7 +199,7 @@ export const HistoricalDataPage = () => {
             <h3 className="panel-heading">2. OpenStreetMap Industrial Geofences</h3>
             <p className="panel-desc">
               3,970 vector polygon boundaries representing refineries, petrochemical complexes, chemical storage tanks,
-              and port installations across the Gujarat Industrial Corridor [69°E–74°E, 20°N–24.5°N].
+              and port installations across monitored Indian industrial corridors [National Registry].
             </p>
             <div className="meta-tag">3,970 Vector Polygons &bull; Overpass API</div>
           </div>

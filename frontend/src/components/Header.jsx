@@ -1,5 +1,6 @@
 import React from 'react';
 import { Flame, Activity, Info, MapPin, RefreshCw } from 'lucide-react';
+import RegionSelector from './RegionSelector';
 
 export const Header = ({ isOnline, dateRange, onOpenModal, onRefresh, isRefreshing }) => {
   return (
@@ -20,10 +21,7 @@ export const Header = ({ isOnline, dateRange, onOpenModal, onRefresh, isRefreshi
       </div>
 
       <div className="header-controls">
-        <div className="status-pill">
-          <MapPin size={14} className="text-secondary" />
-          <span>Region: Gujarat, India</span>
-        </div>
+        <RegionSelector />
 
         {dateRange?.start && (
           <div className="status-pill">

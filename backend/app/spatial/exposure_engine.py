@@ -93,8 +93,12 @@ class ExposureAnalysisService:
     @classmethod
     def _get_assets_path(cls) -> str:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        p_india = os.path.join(base_dir, "data", "osm_cache", "india_exposure_assets.geojson")
+        if os.path.exists(p_india):
+            return p_india
         p = os.path.join(base_dir, "data", "osm_cache", "gujarat_exposure_assets.geojson")
         return p
+
 
     @classmethod
     def load_assets(cls, force_reload: bool = False) -> gpd.GeoDataFrame:

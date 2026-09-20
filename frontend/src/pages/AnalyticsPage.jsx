@@ -36,7 +36,7 @@ export const AnalyticsPage = ({ summary, riskData = [], observations = [] }) => 
         <div className="section-tag">Regional Analytics &bull; Empirical Audit</div>
         <h1 className="section-heading-lg">Regional Analytics &amp; ML Evaluation</h1>
         <p className="section-lead-text">
-          Quantitative distributions derived from satellite telemetry across Gujarat, 
+          Quantitative distributions derived from satellite telemetry across monitored industrial corridors, 
           alongside empirical machine learning evaluation benchmarking the Phase 4 Rule Engine.
         </p>
       </div>

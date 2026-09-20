@@ -212,6 +212,20 @@ class DatasetBuilder:
                         conf_norm.append(0.5)
             df_norm["confidence_normalized"] = conf_norm
 
+        # Spatial state & region tagging
+        if "state" not in df_norm.columns or "region_code" not in df_norm.columns:
+            from app.core.regions import tag_coordinates
+            tagged_states = []
+            tagged_regions = []
+            for _, r in df_norm.iterrows():
+                st, reg = tag_coordinates(float(r["latitude"]), float(r["longitude"]))
+                tagged_states.append(st)
+                tagged_regions.append(reg)
+            if "state" not in df_norm.columns:
+                df_norm["state"] = tagged_states
+            if "region_code" not in df_norm.columns:
+                df_norm["region_code"] = tagged_regions
+
         # 1. OSM Spatial Proximity
         osm_client = OSMClient()
         industrial_gdf = osm_client.fetch_industrial_features(bbox=settings.default_bbox)

@@ -195,7 +195,7 @@ class AbnormalityEngine:
             narrative = (
                 f"CRITICAL ABNORMALITY: Incident exhibits severe operational deviation with heat intensity {intensity_ratio:.1f}x baseline. "
                 f"Thermal growth is {trend_growth.lower()} and duration exceeds expected operational bounds by {excess_pct:.0f}%. "
-                f"Immediate emergency dispatch and on-site investigation required."
+                f"High priority investigation recommended. Ground verification is required before operational response decisions."
             )
         elif composite_score >= 60.0:
             overall_status = "ABNORMAL"

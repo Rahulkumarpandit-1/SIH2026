@@ -1,5 +1,5 @@
 from app.db.session import engine, Base
-from app.db.db_models import RawObservationModel, FacilityThermalProfileModel
+from app.db.db_models import RawObservationModel, FacilityThermalProfileModel, GroundTruthLabelModel
 from app.core.logging import logger
 
 def init_db():

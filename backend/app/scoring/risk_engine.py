@@ -115,29 +115,46 @@ class RiskScoringEngine:
         )
         composite_score = round(min(100.0, max(0.0, float(composite_score))), 2)
 
-        # Determine Risk Level and Operational Category
+        # Mandatory Scientific Recommendation Statement
+        recommendation_statement = (
+            "This recommendation is based solely on satellite-observed thermal anomalies "
+            "and supporting analytical models. Ground verification is required before operational response decisions."
+        )
+
+        # Determine Risk Level and Operational Category (Phase 13.1A Scientific Standardization)
         if composite_score >= 80.0:
             risk_level = "CRITICAL"
-            classification = "INDUSTRIAL_FIRE_OUTBREAK"
-            action_code = "EMERGENCY_DISPATCH"
+            classification = "SEVERE_THERMAL_ANOMALY"
+            action_code = "HIGH_PRIORITY_INVESTIGATION_REQUIRED"
+            action_directive = "High Priority Investigation Required"
+            legacy_action_code = "EMERGENCY_DISPATCH"
         elif composite_score >= 60.0:
             risk_level = "HIGH"
-            classification = "ABNORMAL_INDUSTRIAL_HEAT"
-            action_code = "PRIORITY_INSPECTION"
+            classification = "ELEVATED_THERMAL_ACTIVITY"
+            action_code = "ESCALATED_INVESTIGATION_RECOMMENDED"
+            action_directive = "Escalated Investigation Recommended"
+            legacy_action_code = "PRIORITY_INSPECTION"
         elif composite_score >= 30.0:
             risk_level = "MODERATE"
             classification = "PERSISTENT_OPERATIONAL_SOURCE" if persistence_ratio >= 0.5 else "RECURRING_INTERMITTENT_HEAT"
-            action_code = "ROUTINE_MONITORING"
+            action_code = "ANALYST_REVIEW_RECOMMENDED"
+            action_directive = "Analyst Review Recommended"
+            legacy_action_code = "ROUTINE_MONITORING"
         else:
             risk_level = "LOW"
             classification = "NON_INDUSTRIAL_RURAL"
-            action_code = "BACKGROUND_LOG"
+            action_code = "ROUTINE_MONITORING_RECOMMENDED"
+            action_directive = "Routine Monitoring Recommended"
+            legacy_action_code = "BACKGROUND_LOG"
 
         return {
             "risk_score": composite_score,
             "risk_level": risk_level,
             "classification": classification,
             "action_code": action_code,
+            "action_directive": action_directive,
+            "legacy_action_code": legacy_action_code,
+            "recommendation_statement": recommendation_statement,
             "subscores": {
                 "thermal_subscore": s_thermal,
                 "proximity_subscore": s_prox,
@@ -224,6 +241,9 @@ class RiskScoringEngine:
             row_dict["risk_level"] = risk_meta["risk_level"]
             row_dict["incident_classification"] = risk_meta["classification"]
             row_dict["action_code"] = risk_meta["action_code"]
+            row_dict["action_directive"] = risk_meta["action_directive"]
+            row_dict["legacy_action_code"] = risk_meta["legacy_action_code"]
+            row_dict["recommendation_statement"] = risk_meta["recommendation_statement"]
             row_dict["thermal_subscore"] = risk_meta["subscores"]["thermal_subscore"]
             row_dict["proximity_subscore"] = risk_meta["subscores"]["proximity_subscore"]
             row_dict["persistence_subscore"] = risk_meta["subscores"]["persistence_subscore"]

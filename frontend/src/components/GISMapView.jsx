@@ -1,12 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON, Popup, useMap, CircleMarker, Tooltip } from 'react-leaflet';
 import { useTheme } from '../context/ThemeContext';
+import { useRegion } from '../context/RegionContext';
 import { MAP_PROVIDERS } from '../services/mapConfig';
 import MapLayerControl from './MapLayerControl';
 
-// Helper component to smoothly animate/focus the map when selected cluster changes
-const MapFocusController = ({ targetCoords }) => {
+// Helper component to smoothly animate/focus the map when selected cluster changes or corridor switches
+const MapFocusController = ({ targetCoords, regionCenter, regionZoom, regionCode }) => {
   const map = useMap();
+  const centerLat = regionCenter?.[0];
+  const centerLon = regionCenter?.[1];
+
+  // Whenever corridor switches, ALWAYS fly to the selected region center & default zoom
+  useEffect(() => {
+    if (centerLat !== undefined && centerLon !== undefined && !isNaN(centerLat) && !isNaN(centerLon)) {
+      map.flyTo([centerLat, centerLon], regionZoom || 6, {
+        duration: 1.4,
+        easeLinearity: 0.25
+      });
+    }
+  }, [regionCode, centerLat, centerLon, regionZoom, map]);
+
+  // When targetCoords is specified (e.g. user clicked cluster), fly to target cluster
   useEffect(() => {
     if (targetCoords && targetCoords.length === 2 && !isNaN(targetCoords[0]) && !isNaN(targetCoords[1])) {
       map.flyTo(targetCoords, Math.max(map.getZoom(), 12), {
@@ -15,6 +30,7 @@ const MapFocusController = ({ targetCoords }) => {
       });
     }
   }, [targetCoords, map]);
+
   return null;
 };
 
@@ -36,16 +52,12 @@ export const GISMapView = ({
   onSelectObservation
 }) => {
   const { isDark } = useTheme();
-  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
-
-  // Sync default layer when global theme changes
-  useEffect(() => {
-    setLayerType(isDark ? 'dark' : 'streets');
-  }, [isDark]);
+  const { currentRegion } = useRegion();
+  const [layerType, setLayerType] = useState('satellite');
 
   const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
-  const defaultCenter = [22.2587, 71.1924];
-  const defaultZoom = 7;
+  const defaultCenter = currentRegion?.center || [21.7679, 78.8718];
+  const defaultZoom = currentRegion?.default_zoom || 5;
 
   // Enrich clusters with deterministic risk scores and levels
   const enrichedClusters = useMemo(() => {
@@ -132,12 +144,19 @@ export const GISMapView = ({
       </div>
 
       <MapContainer
+        key={`gis-map-${currentRegion?.region_code || 'ALL_INDIA'}-${layerType}`}
         center={defaultCenter}
         zoom={defaultZoom}
+        preferCanvas={true}
         style={{ width: '100%', height: '100%', minHeight: '480px' }}
         scrollWheelZoom={true}
       >
-        <MapFocusController targetCoords={targetCoords} />
+        <MapFocusController 
+          targetCoords={targetCoords} 
+          regionCenter={currentRegion?.center}
+          regionZoom={currentRegion?.default_zoom}
+          regionCode={currentRegion?.region_code}
+        />
 
         {/* Base Map Tiles */}
         <TileLayer

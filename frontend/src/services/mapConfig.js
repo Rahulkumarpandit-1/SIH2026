@@ -40,4 +40,4 @@ export const MAP_PROVIDERS = {
   }
 };
 
-export const getDefaultBasemap = (isDark) => (isDark ? 'dark' : 'streets');
+export const getDefaultBasemap = () => 'satellite';

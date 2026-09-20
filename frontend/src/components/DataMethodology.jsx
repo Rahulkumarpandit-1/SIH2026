@@ -36,7 +36,7 @@ export const DataMethodology = ({ summary }) => {
             <h3 className="meth-title">OpenStreetMap Overpass Geometries</h3>
           </div>
           <p className="meth-desc">
-            Directly extracts vector boundary polygons for industrial estates, petrochemical zones, and oil storage facilities across the Gujarat Industrial Corridor <code>[69.0&deg;E to 74.0&deg;E, 20.0&deg;N to 24.5&deg;N]</code>.
+            Directly extracts vector boundary polygons for industrial estates, petrochemical zones, and oil storage facilities across monitored Indian industrial corridors.
           </p>
           <ul className="meth-bullets">
             <li><strong>Feature Queries:</strong> <code>landuse=industrial</code>, <code>industrial=*</code>, <code>man_made=flare</code>.</li>

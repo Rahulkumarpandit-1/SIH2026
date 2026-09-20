@@ -50,7 +50,7 @@ export const ScientificContextModal = ({ isOpen, onClose }) => {
               Phase 4 — Operational Explainable Risk Engine (Primary Decision Core)
             </div>
             <div className="phase-step-desc">
-              Combines Thermal Intensity (35%), OSM Industrial Proximity (30%), Temporal Persistence (25%), and Sensor Confidence (10%) into a 0–100 Risk Score. Generates deterministic triage action codes (EMERGENCY_DISPATCH, PRIORITY_INSPECTION, ROUTINE_MONITORING).
+              Combines Thermal Intensity (35%), OSM Industrial Proximity (30%), Temporal Persistence (25%), and Sensor Confidence (10%) into a 0–100 Risk Score. Generates deterministic operational directives (HIGH_PRIORITY_INVESTIGATION_REQUIRED, ESCALATED_INVESTIGATION_RECOMMENDED, ANALYST_REVIEW_RECOMMENDED, ROUTINE_MONITORING_RECOMMENDED). Ground verification is required before operational response decisions.
             </div>
           </div>
 

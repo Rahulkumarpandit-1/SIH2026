@@ -12,8 +12,10 @@ import {
   Calendar,
   Eye
 } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
 
 export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
+  const { currentRegion } = useRegion();
   const safeObs = Array.isArray(observations) ? observations : [];
   const safeRisk = Array.isArray(riskData) ? riskData : [];
 
@@ -70,7 +72,7 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
         desc: 'Calculates thermal contrast (ΔT = T4 - T31) to isolate sub-pixel combustion against ambient terrain.',
         evidence: [
           'Sensor Quality Gates: Strict Pydantic v2 Schema Compliance',
-          'Coordinate Bounds Check: Validated within Gujarat Industrial Corridor'
+          `Coordinate Bounds Check: Validated within ${currentRegion?.name || 'National Industrial Corridors'}`
         ]
       },
       {
@@ -131,11 +133,11 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
       },
       {
         step: '08',
-        title: 'Operational Dispatch Directive',
-        subtitle: 'Actionable Emergency Protocol Assignment',
-        desc: 'Translates risk score into automated disaster management protocols (EVACUATE, DRONE_INSPECT, LOG).',
+        title: 'Operational Investigation Directive',
+        subtitle: 'Recommended Investigation Protocol Assignment',
+        desc: 'Translates risk score into standardized investigation protocols. Ground verification is required before operational decisions.',
         evidence: [
-          `Mandated Directive: ${selectedIncident.action_code}`,
+          `Recommended Directive: ${selectedIncident.action_code}`,
           `Assigned Priority Tier: ${selectedIncident.risk_level}`,
           `Current Ground Truth: UNLABELED (Awaiting Independent Verification)`
         ]
@@ -150,8 +152,8 @@ export const DetectionTimelinePage = ({ riskData = [], observations = [] }) => {
         <div className="section-tag">MULTI-DAY TEMPORAL AUDIT &bull; SIH26162</div>
         <h1 className="section-heading-lg">Detection Timeline &amp; Pipeline Trace</h1>
         <p className="section-subtext">
-          Trace how thermal detections evolve over the historical observation window and follow any incident 
-          through the 8-step analytical detection lifecycle from orbital photon to emergency dispatch directive.
+          Trace how thermal detections evolve over the observation window and follow any incident 
+          through the 8-step analytical detection lifecycle from orbital photon to scientific investigation directive.
         </p>
       </div>
 

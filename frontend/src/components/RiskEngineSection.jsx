@@ -72,43 +72,57 @@ export const RiskEngineSection = () => {
 
       {/* Operational Triage Action Table */}
       <div className="risk-bands-card">
-        <h3 className="risk-bands-title">OPERATIONAL RISK BANDS &amp; DISPATCH PROTOCOLS</h3>
+        <h3 className="risk-bands-title">OPERATIONAL RISK BANDS &amp; SCIENTIFIC INVESTIGATION PROTOCOLS</h3>
         <table className="triage-table">
           <thead>
             <tr>
               <th>Risk Score Range</th>
               <th>Tier Level</th>
               <th>Incident Classification</th>
-              <th>Mandated Operational Action</th>
+              <th>Recommended Operational Directive</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><strong style={{ color: 'var(--risk-critical)' }}>80.0 — 100.0</strong></td>
-              <td><span className="risk-badge critical">CRITICAL</span></td>
-              <td><code>INDUSTRIAL_FIRE_OUTBREAK</code></td>
-              <td><strong>EMERGENCY_DISPATCH</strong> — Immediate alert to district fire services &amp; plant emergency room.</td>
+              <td><span className="risk-badge critical">SEVERE</span></td>
+              <td><code>SEVERE_THERMAL_ANOMALY</code></td>
+              <td><strong>HIGH_PRIORITY_INVESTIGATION_REQUIRED</strong> — High Priority Investigation Required. Rapid site review and facility contact recommended.</td>
             </tr>
             <tr>
               <td><strong style={{ color: 'var(--risk-high)' }}>60.0 — 79.9</strong></td>
               <td><span className="risk-badge high">HIGH</span></td>
-              <td><code>ABNORMAL_INDUSTRIAL_HEAT</code></td>
-              <td><strong>PRIORITY_INSPECTION</strong> — Check plant flaring logs; dispatch drone/CCTV verification.</td>
+              <td><code>ELEVATED_THERMAL_ACTIVITY</code></td>
+              <td><strong>ESCALATED_INVESTIGATION_RECOMMENDED</strong> — Escalated Investigation Recommended. Check plant flaring logs; compare against historical baseline.</td>
             </tr>
             <tr>
               <td><strong style={{ color: 'var(--risk-moderate)' }}>30.0 — 59.9</strong></td>
-              <td><span className="risk-badge moderate">MODERATE</span></td>
+              <td><span className="risk-badge moderate">MEDIUM</span></td>
               <td><code>PERSISTENT_OPERATIONAL_SOURCE</code></td>
-              <td><strong>ROUTINE_MONITORING</strong> — Automated baseline tracking of known gas flares and blast furnaces.</td>
+              <td><strong>ANALYST_REVIEW_RECOMMENDED</strong> — Analyst Review Recommended. Automated baseline tracking of known gas flares and persistent sources.</td>
             </tr>
             <tr>
               <td><strong style={{ color: 'var(--risk-low)' }}>0.0 — 29.9</strong></td>
               <td><span className="risk-badge low">LOW</span></td>
               <td><code>NON_INDUSTRIAL_RURAL</code></td>
-              <td><strong>BACKGROUND_LOG</strong> — Filtered agricultural burning; low priority for industrial teams.</td>
+              <td><strong>ROUTINE_MONITORING_RECOMMENDED</strong> — Routine Monitoring Recommended. Filtered agricultural burning; standard background logging.</td>
             </tr>
           </tbody>
         </table>
+
+        {/* Mandatory Scientific Recommendation Statement */}
+        <div style={{
+          marginTop: '1rem',
+          padding: '0.75rem 1rem',
+          background: 'rgba(56, 189, 248, 0.07)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '6px',
+          fontSize: '0.78rem',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.5
+        }}>
+          <strong style={{ color: 'var(--text-main)' }}>Scientific Operational Safeguard:</strong> This recommendation is based solely on satellite-observed thermal anomalies and supporting analytical models. Ground verification is required before operational response decisions.
+        </div>
       </div>
     </section>
   );

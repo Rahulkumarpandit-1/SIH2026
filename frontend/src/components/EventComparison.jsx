@@ -8,7 +8,7 @@ export const EventComparison = ({ riskData = [] }) => {
     nearest_facility_name: 'Hazira Heavy Industrial Complex',
     risk_score: 92.42,
     risk_level: 'CRITICAL',
-    action_code: 'EMERGENCY_DISPATCH',
+    action_code: 'HIGH_PRIORITY_INVESTIGATION_REQUIRED',
     telemetry: { max_frp: 92.7, distance_to_industry_meters: 141.5, persistence_ratio: 0.20, is_anomaly_spike: true, active_days_count: 1 }
   };
 
@@ -17,7 +17,7 @@ export const EventComparison = ({ riskData = [] }) => {
     nearest_facility_name: 'Jamnagar Petroleum Refining Complex',
     risk_score: 48.90,
     risk_level: 'MODERATE',
-    action_code: 'ROUTINE_MONITORING',
+    action_code: 'ANALYST_REVIEW_RECOMMENDED',
     telemetry: { max_frp: 29.1, distance_to_industry_meters: 0.0, persistence_ratio: 1.00, is_anomaly_spike: false, active_days_count: 5 }
   };
 
@@ -26,7 +26,7 @@ export const EventComparison = ({ riskData = [] }) => {
     nearest_facility_name: 'Rural Agricultural Belt',
     risk_score: 24.20,
     risk_level: 'LOW',
-    action_code: 'BACKGROUND_LOG',
+    action_code: 'ROUTINE_MONITORING_RECOMMENDED',
     telemetry: { max_frp: 5.6, distance_to_industry_meters: 39256.0, persistence_ratio: 0.20, is_anomaly_spike: false, active_days_count: 1 }
   };
 
@@ -38,7 +38,7 @@ export const EventComparison = ({ riskData = [] }) => {
           Why Does One Hotspot <span className="text-cyan">Matter More Than Another?</span>
         </h2>
         <p className="section-subtitle">
-          Comparing three actual verified spatial clusters from our Gujarat testbed demonstrates how 
+          Comparing three actual verified spatial clusters from our monitored testbeds demonstrates how 
           multi-signal contextual intelligence prevents false alarms and highlights acute emergencies.
         </p>
       </div>
@@ -49,7 +49,7 @@ export const EventComparison = ({ riskData = [] }) => {
           <div className="comp-card-header">
             <div className="comp-badge critical">CRITICAL &bull; {hazira.risk_score?.toFixed(1)} / 100</div>
             <h3 className="comp-title">{hazira.cluster_id} — Hazira Steel Complex</h3>
-            <span className="comp-sub">Sudden High-Power Explosion / Surge</span>
+            <span className="comp-sub">Sudden High-Power Thermal Anomaly Spike</span>
           </div>
 
           <div className="comp-metrics-table">
@@ -72,7 +72,7 @@ export const EventComparison = ({ riskData = [] }) => {
           </div>
 
           <div className="comp-verdict critical">
-            <strong>System Evaluation:</strong> High thermal power inside heavy industrial park with no prior recurrence triggers immediate emergency triage dispatch.
+            <strong>System Evaluation:</strong> High thermal power inside heavy industrial park with no prior recurrence triggers high-priority investigation recommendation. Ground verification is required before operational response decisions.
           </div>
         </div>
 
@@ -112,7 +112,7 @@ export const EventComparison = ({ riskData = [] }) => {
         <div className="comparison-card low">
           <div className="comp-card-header">
             <div className="comp-badge low">LOW RISK &bull; {rural.risk_score?.toFixed(1)} / 100</div>
-            <h3 className="comp-title">{rural.cluster_id} — Rural Gujarat</h3>
+            <h3 className="comp-title">{rural.cluster_id} — Rural / Agricultural Sector</h3>
             <span className="comp-sub">Agricultural Crop Residue Burn</span>
           </div>
 

@@ -7,14 +7,17 @@ import IncidentDetailPage from './pages/IncidentDetailPage';
 import GISExplorerPage from './pages/GISExplorerPage';
 import HistoricalDataPage from './pages/HistoricalDataPage';
 import MachineLearningPage from './pages/MachineLearningPage';
+import GroundTruthReviewPage from './pages/GroundTruthReviewPage';
 import DetectionTimelinePage from './pages/DetectionTimelinePage';
 import MethodologyPage from './pages/MethodologyPage';
 import Footer from './components/Footer';
 import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { RegionProvider, useRegion } from './context/RegionContext';
 
 export const AppContent = () => {
   const { theme } = useTheme();
+  const { currentRegion, currentRegionCode } = useRegion();
   // Navigation View State: 'overview' | 'incidents' | 'incident-detail' | 'gis' | 'historical' | 'ml' | 'timeline' | 'methodology'
   const [currentView, setCurrentView] = useState('overview');
 
@@ -44,12 +47,14 @@ export const AppContent = () => {
       await apiService.getHealth();
       setIsOnline(true);
 
-      // 2. Fetch critical telemetry first
+      const regionParam = currentRegionCode === 'ALL_INDIA' ? undefined : currentRegionCode;
+
+      // 2. Fetch critical telemetry for current region
       const [summaryRes, obsRes, clustersRes, riskRes] = await Promise.all([
-        apiService.getSummary().catch(() => null),
-        apiService.getObservations().catch(() => []),
-        apiService.getClusters().catch(() => []),
-        apiService.getRisk().catch(() => [])
+        apiService.getSummary(regionParam).catch(() => null),
+        apiService.getObservations(undefined, regionParam).catch(() => []),
+        apiService.getClusters(regionParam).catch(() => []),
+        apiService.getRisk(regionParam).catch(() => [])
       ]);
 
       const safeObs = Array.isArray(obsRes) ? obsRes : [];
@@ -61,9 +66,11 @@ export const AppContent = () => {
       setClusters(safeClusters);
       setRiskData(safeRisk);
       
-      // Default selected incident
-      if (safeRisk.length > 0 && !selectedIncident) {
+      // Default selected incident for current region
+      if (safeRisk.length > 0) {
         setSelectedIncident(safeRisk[0]);
+      } else {
+        setSelectedIncident(null);
       }
 
       // Unblock initial screen rendering immediately
@@ -71,7 +78,7 @@ export const AppContent = () => {
       setIsRefreshing(false);
 
       // 3. Asynchronously load heavy OSM polygons in background without blocking UI
-      apiService.getIndustrialPolygons()
+      apiService.getIndustrialPolygons(regionParam)
         .then((polyRes) => {
           if (polyRes && polyRes.features) {
             setIndustrialPolygons(polyRes);
@@ -90,7 +97,7 @@ export const AppContent = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedIncident]);
+  }, [currentRegionCode]);
 
   useEffect(() => {
     loadDashboardData();
@@ -218,6 +225,11 @@ export const AppContent = () => {
             <MachineLearningPage />
           )}
 
+          {/* View 5b: Phase 9 Ground Truth Review System */}
+          {currentView === 'ground-truth' && (
+            <GroundTruthReviewPage />
+          )}
+
           {/* View 6: Detection Timeline */}
           {currentView === 'timeline' && (
             <DetectionTimelinePage
@@ -241,7 +253,9 @@ export const AppContent = () => {
 
 export const App = () => (
   <ThemeProvider>
-    <AppContent />
+    <RegionProvider>
+      <AppContent />
+    </RegionProvider>
   </ThemeProvider>
 );
 

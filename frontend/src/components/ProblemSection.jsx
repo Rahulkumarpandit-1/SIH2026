@@ -77,7 +77,7 @@ export const ProblemSection = () => {
               <strong>No Temporal Anomaly Detection:</strong> Did the thermal energy surge by 400% today compared to its historic weekly average?
             </li>
             <li>
-              <strong>Zero Incident Prioritization:</strong> When 2,000 hotspots appear across the country, which single facility requires emergency dispatch first?
+              <strong>Zero Incident Prioritization:</strong> When 2,000 hotspots appear across the country, which single facility requires investigation priority first?
             </li>
           </ul>
         </div>

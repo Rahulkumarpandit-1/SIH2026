@@ -17,7 +17,10 @@ import {
   RefreshCw
 } from 'lucide-react';
 import GISMapView from '../components/GISMapView';
+import NextSatelliteCountdown from '../components/NextSatelliteCountdown';
 import { apiService } from '../services/api';
+import { useRegion } from '../context/RegionContext';
+import { formatToIST, formatRelativeAge, formatTimestampWithRelative } from '../utils/dateUtils';
 
 export const OverviewPage = ({
   summary,
@@ -34,11 +37,19 @@ export const OverviewPage = ({
   onNavigateToTimeline,
   onRefreshData
 }) => {
+  const { currentRegion } = useRegion();
   const safeRisk = Array.isArray(riskData) ? riskData : [];
   const safeObs = Array.isArray(observations) ? observations : [];
   const safeClusters = Array.isArray(clusters) ? clusters : [];
 
   const criticalIncident = safeRisk.length > 0 ? safeRisk[0] : null;
+  const [inspectedCluster, setInspectedCluster] = useState(null);
+
+  // When corridor switches, reset inspected cluster so map flies to the new region
+  useEffect(() => {
+    setInspectedCluster(null);
+  }, [currentRegion?.region_code]);
+
   const [mlStatus, setMlStatus] = useState(null);
   const [qualityReport, setQualityReport] = useState(null);
   const [refreshStatus, setRefreshStatus] = useState(null);
@@ -117,8 +128,8 @@ export const OverviewPage = ({
       ruralCount: ruralCount || (totalObs > 0 ? totalObs - Math.round(totalObs * 0.91) : 0),
       verifiedCount,
       unlabeledCount: unlabeledCount || totalObs,
-      lastUpdateStr: formatUtcTimestamp(lastUpdate),
-      nextRefreshStr: formatUtcTimestamp(nextRefresh),
+      lastUpdateStr: formatTimestampWithRelative(lastUpdate, 'Updated'),
+      nextRefreshStr: formatToIST(nextRefresh),
       liveObsCount,
       criticalCount: summary?.critical_count ?? safeRisk.filter(r => r.risk_level === 'CRITICAL').length,
       highCount: summary?.high_count ?? safeRisk.filter(r => r.risk_level === 'HIGH').length,
@@ -163,7 +174,7 @@ export const OverviewPage = ({
             className="hero-feature-img"
           />
           <div className="hero-media-caption">
-            NASA VIIRS (375m) &amp; MODIS (1km) Infrared Sensor Acquisition &bull; Gujarat Industrial Corridor
+            NASA VIIRS (375m) &amp; MODIS (1km) Infrared Sensor Acquisition &bull; {currentRegion?.name || 'National Industrial Corridors'}
           </div>
         </div>
       </section>
@@ -188,8 +199,16 @@ export const OverviewPage = ({
                 SYSTEM LIVE &bull; Near-Real-Time Satellite Thermal Monitoring
               </strong>
             </div>
-            <div className="font-mono text-secondary" style={{ fontSize: '0.78rem' }}>
-              Last data update: <strong>{liveStats.lastUpdateStr}</strong> &bull; Next scheduled refresh: <strong>{liveStats.nextRefreshStr}</strong>
+            <div className="font-mono text-secondary" style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+              <span>Last data update: <strong>{liveStats.lastUpdateStr}</strong></span>
+              <NextSatelliteCountdown
+                nextRefreshTime={summary?.next_refresh_time || refreshStatus?.next_scheduled_refresh}
+                onCountdownComplete={() => {
+                  apiService.getRefreshStatus().then((r) => {
+                    if (r) setRefreshStatus(r);
+                  }).catch(() => null);
+                }}
+              />
             </div>
           </div>
 
@@ -299,7 +318,7 @@ export const OverviewPage = ({
           <div className="pipeline-step-card">
             <div className="step-num font-mono">07 &bull; VERIFY</div>
             <h4>Human Verification</h4>
-            <p>Analysts attach independent emergency dispatch logs, CCTV reports, and ground-truth citations.</p>
+            <p>Analysts attach independent operational logs, CCTV reports, and ground-truth citations.</p>
           </div>
 
           <div className="pipeline-step-card">
@@ -320,7 +339,7 @@ export const OverviewPage = ({
             <div className="critical-header-row">
               <div>
                 <div className="badge-critical" style={{ marginBottom: '0.4rem' }}>
-                  PRIORITY #{criticalIncident.rank} &bull; {criticalIncident.risk_level} ACTIONABLE EMERGENCY
+                  PRIORITY #{criticalIncident.rank} &bull; {criticalIncident.risk_level} HIGH-PRIORITY INVESTIGATION &bull; 📍 {criticalIncident.state || 'India'}
                 </div>
                 <h2 className="critical-title">
                   {criticalIncident.cluster_id} &mdash; {criticalIncident.nearest_facility_name}
@@ -328,7 +347,7 @@ export const OverviewPage = ({
                 <div className="critical-location-line">
                   <MapPin size={14} />
                   <span>
-                    {criticalIncident.nearest_facility_type} &bull; {criticalIncident.centroid_latitude?.toFixed(4)}°N, {criticalIncident.centroid_longitude?.toFixed(4)}°E &bull; {criticalIncident.spatial_context}
+                    <strong style={{ color: 'var(--primary, #38BDF8)' }}>{criticalIncident.state ? `${criticalIncident.state}, ` : ''}{currentRegion?.name || 'India'}</strong> &bull; {criticalIncident.nearest_facility_type} &bull; {criticalIncident.centroid_latitude?.toFixed(4)}°N, {criticalIncident.centroid_longitude?.toFixed(4)}°E &bull; {criticalIncident.spatial_context}
                   </span>
                 </div>
               </div>
@@ -421,7 +440,7 @@ export const OverviewPage = ({
         <div className="section-header-flex">
           <div>
             <div className="section-tag">GEOSPATIAL INTELLIGENCE LAYER</div>
-            <h2 className="section-heading">Geospatial Intelligence Map &bull; Gujarat Corridor</h2>
+            <h2 className="section-heading">Geospatial Intelligence Map &bull; {currentRegion?.short_name || currentRegion?.name || 'National Corridor'}</h2>
             <p className="section-subtext">
               Active Leaflet GIS workspace displaying satellite thermal hotspot pixels, cluster centroids, and 3,970 OSM industrial boundary polygons.
             </p>
@@ -438,8 +457,11 @@ export const OverviewPage = ({
             clusters={safeClusters}
             riskData={riskData}
             industrialPolygons={industrialPolygons}
-            selectedCluster={criticalIncident}
-            onSelectCluster={(c) => onOpenIncidentDetail(c)}
+            selectedCluster={inspectedCluster}
+            onSelectCluster={(c) => {
+              setInspectedCluster(c);
+              onOpenIncidentDetail(c);
+            }}
             onSelectObservation={() => {}}
           />
         </div>

@@ -1,7 +1,9 @@
 import React from 'react';
 import { ArrowRight, Info, Flame, MapPin, Layers, ShieldAlert, Radio } from 'lucide-react';
+import { useRegion } from '../context/RegionContext';
 
 export const HeroSection = ({ summary, onOpenModal }) => {
+  const { currentRegion } = useRegion();
   return (
     <section className="hero-section">
       {/* Background Ambient Grid */}
@@ -25,7 +27,7 @@ export const HeroSection = ({ summary, onOpenModal }) => {
 
         {/* Supporting Subtitle */}
         <p className="hero-description">
-          From raw orbital infrared sensors to deterministic, explainable emergency priority. 
+          From raw orbital infrared sensors to deterministic, explainable investigation priority. 
           We fuse physical combustion energy, OpenStreetMap industrial boundaries, multi-day recurrence history, 
           and sensor confidence to distinguish routine refinery flares from acute industrial disasters.
         </p>
@@ -56,12 +58,12 @@ export const HeroSection = ({ summary, onOpenModal }) => {
           <div className="metric-divider" />
           <div className="hero-metric-item">
             <span className="metric-label">Critical Outbreaks</span>
-            <span className="metric-val text-critical">{summary?.critical_count ?? 1} Emergency</span>
+            <span className="metric-val text-critical">{summary?.critical_count ?? 1} Severe Outbreaks</span>
           </div>
           <div className="metric-divider" />
           <div className="hero-metric-item">
             <span className="metric-label">Monitored Region</span>
-            <span className="metric-val">Gujarat, India</span>
+            <span className="metric-val">{currentRegion?.states_covered || currentRegion?.short_name || 'India'}</span>
           </div>
         </div>
 
@@ -113,7 +115,7 @@ export const HeroSection = ({ summary, onOpenModal }) => {
         />
         <div className="hero-image-overlay">
           <div className="hero-image-caption">ORBITAL INFRARED MULTI-SPECTRAL TELEMETRY</div>
-          <div className="hero-image-sub">VIIRS 375m / MODIS 1km sensor stream over Gujarat Industrial Corridor</div>
+          <div className="hero-image-sub">VIIRS 375m / MODIS 1km sensor stream over {currentRegion?.name || 'Indian Industrial Corridors'}</div>
         </div>
       </div>
     </section>

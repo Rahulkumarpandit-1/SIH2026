@@ -66,7 +66,7 @@ export const MethodologyPage = () => {
           <div className="report-data-item">
             <span className="report-data-label">OpenStreetMap Overpass</span>
             <span className="report-data-val">3,970 Industrial Geometries</span>
-            <span className="text-secondary" style={{ fontSize: '0.8rem' }}>Vector polygons representing petrochemical refineries, chemical tank farms, and ports across Gujarat.</span>
+            <span className="text-secondary" style={{ fontSize: '0.8rem' }}>Vector polygons representing petrochemical refineries, chemical tank farms, and industrial complexes across monitored Indian corridors.</span>
           </div>
         </div>
       </section>
@@ -129,7 +129,7 @@ export const MethodologyPage = () => {
           <div className="text-panel">
             <h4 style={{ fontWeight: 700 }}>Acute Anomaly Spikes (Pratio &lt; 0.5):</h4>
             <p className="panel-desc">
-              Sudden unprecedented thermal outbreaks appearing without multi-day historical recurrence trigger an anomaly surge penalty (+95 pts) for emergency dispatch.
+              Sudden unprecedented thermal outbreaks appearing without multi-day historical recurrence trigger an anomaly surge penalty (+95 pts) for prioritized investigation.
             </p>
           </div>
         </div>
@@ -173,7 +173,7 @@ export const MethodologyPage = () => {
         <h2 className="section-heading">Satellite Detections &ne; Verified Ground Truth</h2>
         <p className="section-subtext" style={{ maxWidth: '100%' }}>
           A thermal hotspot detected by an orbital radiometer is a physical electromagnetic observation. 
-          It does not become a verified ground-truth label until cross-referenced with independent emergency dispatch registries, 
+          It does not become a verified ground-truth label until cross-referenced with independent ground verification registries, 
           legal industrial accident logs, or human expert review with documented citations. We strictly forbid heuristic synthetic label fabrication.
         </p>
       </section>

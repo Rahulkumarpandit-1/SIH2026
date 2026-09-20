@@ -41,7 +41,7 @@ export const PipelineSection = () => {
       title: 'Multi-Signal Risk Scoring (Primary MVP)',
       icon: <ShieldAlert size={20} />,
       inputs: 'Thermal Radiance (35%), OSM Proximity (30%), Persistence & Anomaly (25%), Sensor Quality (10%).',
-      outputs: 'Deterministic 0–100 Risk Score, CRITICAL/HIGH/MODERATE/LOW categories, Action Codes (EMERGENCY_DISPATCH).',
+      outputs: 'Deterministic 0–100 Risk Score, CRITICAL/HIGH/MODERATE/LOW categories, Operational Directives (HIGH_PRIORITY_INVESTIGATION_REQUIRED).',
       tech: 'Transparent weighted linear formulation with non-linear distance decay and operational flaring discount.',
       badge: 'Primary Decision Core',
       isPrimary: true
@@ -67,7 +67,7 @@ export const PipelineSection = () => {
         </h2>
         <p className="section-subtitle">
           Every thermal detection passes through 5 modular, independently verified analytical stages 
-          to transform raw electromagnetic radiation into actionable emergency triage decisions.
+          to transform raw electromagnetic radiation into actionable scientific investigation decisions.
         </p>
       </div>
 

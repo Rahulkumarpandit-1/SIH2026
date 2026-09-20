@@ -23,7 +23,11 @@ export const ThemeProvider = ({ children }) => {
   const setTheme = (newTheme) => {
     if (newTheme === 'light' || newTheme === 'dark') {
       setThemeState(newTheme);
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      try {
+        localStorage.setItem(STORAGE_KEY, newTheme);
+      } catch (e) {
+        // Safe fallback
+      }
     }
   };
 

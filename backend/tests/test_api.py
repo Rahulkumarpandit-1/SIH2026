@@ -67,7 +67,8 @@ def test_api_risk_sorting_and_critical_hazira():
     assert top_cluster["rank"] == 1
     assert top_cluster["risk_score"] >= 80.0
     assert top_cluster["risk_level"] == "CRITICAL"
-    assert top_cluster["action_code"] == "EMERGENCY_DISPATCH"
+    assert top_cluster["action_code"] == "HIGH_PRIORITY_INVESTIGATION_REQUIRED"
+    assert top_cluster.get("legacy_action_code") == "EMERGENCY_DISPATCH"
     assert top_cluster["subscores"]["thermal_subscore"] > 90.0
     assert top_cluster["telemetry"]["is_anomaly_spike"] is True
 
