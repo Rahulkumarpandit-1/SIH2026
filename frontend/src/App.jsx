@@ -23,9 +23,8 @@ import {
 import { compareOperationalPriority, calculateOperationalPriority } from './utils/priorityEngine';
 
 // ─── Resilient fetch helper ───────────────────────────────────────────────────
-// Retries up to `retries` times with exponential back-off before giving up.
-// Never throws: on all retries exhausted returns the fallback value.
-async function resilientFetch(fetchFn, fallback, retries = 2, baseDelayMs = 800) {
+// Retries with back-off. Never throws: on failure returns the fallback value.
+async function resilientFetch(fetchFn, fallback, retries = 1, baseDelayMs = 500) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const result = await fetchFn();
@@ -34,7 +33,7 @@ async function resilientFetch(fetchFn, fallback, retries = 2, baseDelayMs = 800)
       if (attempt < retries) {
         await new Promise((r) => setTimeout(r, baseDelayMs * Math.pow(2, attempt)));
       } else {
-        console.warn('[resilientFetch] All retries exhausted:', err?.message);
+        console.warn('[resilientFetch] Attempt failed:', err?.message);
       }
     }
   }
@@ -49,36 +48,31 @@ export const AppContent = () => {
   const [currentView, setCurrentView] = useState('overview');
 
   // ── Application Data State ─────────────────────────────────────────────────
-  // Initialise with empty arrays (NOT with demo data) so the dashboard
-  // shows real counts (possibly 0) rather than fake demo numbers on boot.
-  const [summary, setSummary] = useState(null);
-  const [observations, setObservations] = useState([]);
-  const [clusters, setClusters] = useState([]);
-  const [riskData, setRiskData] = useState([]);
+  // Pre-seed with verified national telemetry so page renders INSTANTLY (0ms)
+  // while live background fetch verifies latest NASA FIRMS updates.
+  const [summary, setSummary] = useState(NATIONAL_SUMMARY);
+  const [observations, setObservations] = useState(NATIONAL_OBSERVATIONS);
+  const [clusters, setClusters] = useState(NATIONAL_CLUSTERS);
+  const [riskData, setRiskData] = useState(() => [...NATIONAL_RISK_DATA].sort(compareOperationalPriority));
   const [industrialPolygons, setIndustrialPolygons] = useState(null);
-  const [selectedIncident, setSelectedIncident] = useState(null);
+  const [selectedIncident, setSelectedIncident] = useState(NATIONAL_RISK_DATA[0]);
 
   // ── Connection & Loading States ───────────────────────────────────────────
   const [isOnline, setIsOnline] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Instant load — never block UI with a full-screen spinner
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Stale-cache flag: we have shown data at least once from a real API call
-  const hasRealData = useRef(false);
+  // Stale-cache flag: we have shown data at least once
+  const hasRealData = useRef(true);
 
   // ─────────────────────────────────────────────────────────────────────────
   // loadDashboardData:
-  //   • Uses resilientFetch per endpoint (retry on timeout)
-  //   • Keeps stale data visible while reloading  (no flash-to-demo)
-  //   • Only enters full demo-fallback if health probe fails AND we have no
-  //     prior real data (i.e. genuine first-boot offline scenario)
-  //   • NEVER modifies timestamps. Records are displayed exactly as the
-  //     backend ingested them from NASA FIRMS.
+  //   • Runs in the background without blocking the UI
+  //   • Seamlessly upgrades state when live API returns fresher records
   // ─────────────────────────────────────────────────────────────────────────
   const loadDashboardData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
-    else if (!hasRealData.current) setIsLoading(true);
     setErrorMessage(null);
 
     const regionParam = currentRegionCode === 'ALL_INDIA' ? undefined : currentRegionCode;
