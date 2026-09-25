@@ -30,6 +30,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"National seed check on startup: {e}")
 
+    # Pre-warm in-memory pipeline cache on startup so all subsequent HTTP requests respond in <2ms
+    try:
+        from app.api.service import PipelineService
+        with SessionLocal() as db:
+            logger.info("Pre-warming pipeline cache on startup...")
+            PipelineService.get_analyzed_data(db)
+            logger.info("Pipeline cache successfully pre-warmed.")
+    except Exception as e:
+        logger.warning(f"Pipeline cache pre-warm on startup: {e}")
+
     # Start background scheduler if enabled
     if settings.ENABLE_BACKGROUND_SCHEDULER:
         try:

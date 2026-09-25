@@ -138,9 +138,8 @@ class WeatherClient:
                 return weather_data
 
         except Exception as e:
-            if "429" in str(e):
-                cls._circuit_open_until = now + 600  # Back off 10m
-            logger.warning(f"Open-Meteo fetch failed for ({lat}, {lon}): {e}. Using resilient baseline fallback.")
+            cls._circuit_open_until = now + 180  # Trip circuit breaker for 3m on network failure to avoid 400 serial timeouts
+            logger.warning(f"Open-Meteo fetch failed for ({lat}, {lon}): {e}. Tripping circuit breaker to use resilient fallback.")
             fallback_data = cls._get_baseline_fallback()
             cls._cache[cache_key] = {"cached_at": now, "data": fallback_data}
             return fallback_data

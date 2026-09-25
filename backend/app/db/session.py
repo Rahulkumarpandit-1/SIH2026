@@ -1,6 +1,7 @@
 import os
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 # Ensure data directory exists for SQLite
@@ -12,7 +13,8 @@ if settings.DATABASE_URL.startswith("sqlite:///"):
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    connect_args={"check_same_thread": False, "timeout": 60} if "sqlite" in settings.DATABASE_URL else {},
+    poolclass=NullPool if "sqlite" in settings.DATABASE_URL else None,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

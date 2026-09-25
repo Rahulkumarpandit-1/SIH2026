@@ -55,6 +55,7 @@ class PipelineService:
     _cached_quality_report: Optional[Dict[str, Any]] = None
 
     _refresh_lock = threading.Lock()
+    _pipeline_lock = threading.Lock()
     _last_refresh_status: Dict[str, Any] = {
         "status": "IDLE",
         "job_id": None,
@@ -114,19 +115,28 @@ class PipelineService:
         Executes the verified analysis pipeline on stored observations with in-memory caching:
         DB Observations -> OSM Proximity -> DBSCAN Clustering -> Persistence -> Risk Scoring -> Ground Truth
         """
-        records = db.query(RawObservationModel).all()
-        current_count = len(records)
-
-        if not force_refresh and cls._cached_data is not None and cls._cached_record_count == current_count:
+        # Fast path if cache is already warm
+        if not force_refresh and cls._cached_data is not None:
             return cls._cached_data
 
-        if not records:
-            logger.warning("No observations found in database during API execution.")
-            return {
-                "observations_df": pd.DataFrame(),
-                "clusters_df": pd.DataFrame(),
-                "osm_geojson": {"type": "FeatureCollection", "features": []}
-            }
+        with cls._pipeline_lock:
+            # Check cache again inside lock
+            if not force_refresh and cls._cached_data is not None:
+                return cls._cached_data
+
+            records = db.query(RawObservationModel).all()
+            current_count = len(records)
+
+            if not force_refresh and cls._cached_data is not None and cls._cached_record_count == current_count:
+                return cls._cached_data
+
+            if not records:
+                logger.warning("No observations found in database during API execution.")
+                return {
+                    "observations_df": pd.DataFrame(),
+                    "clusters_df": pd.DataFrame(),
+                    "osm_geojson": {"type": "FeatureCollection", "features": []}
+                }
 
         data = []
         for obs in records:
