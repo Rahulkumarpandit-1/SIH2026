@@ -15,6 +15,21 @@ from app.scheduler.scheduler import scheduler
 async def lifespan(app: FastAPI):
     """Lifespan context manager to start and stop background workers cleanly."""
     logger.info("Initializing SIH26162 Near-Real-Time Thermal Intelligence Platform...")
+    # Ensure database is initialized with full national observations across India
+    try:
+        from app.db.session import SessionLocal
+        from app.db.db_models import RawObservationModel
+        from scripts.seed_national_observations import seed_database
+        with SessionLocal() as db:
+            multi_region_count = db.query(RawObservationModel).filter(
+                RawObservationModel.longitude > 74.5
+            ).count()
+            if multi_region_count < 10:
+                logger.info("Initializing multi-region national observations for Whole India coverage...")
+                seed_database()
+    except Exception as e:
+        logger.warning(f"National seed check on startup: {e}")
+
     # Start background scheduler if enabled
     if settings.ENABLE_BACKGROUND_SCHEDULER:
         try:

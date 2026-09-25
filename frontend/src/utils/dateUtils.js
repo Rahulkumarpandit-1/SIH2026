@@ -116,7 +116,7 @@ export function formatTimeIST(dateInput) {
  */
 export function formatRelativeAge(dateInput, prefix = 'Observed') {
   const d = parseDateSafe(dateInput);
-  if (!d) return 'N/A';
+  if (!d) return 'UNKNOWN';
 
   const now = Date.now();
   const diffMs = Math.max(0, now - d.getTime());
@@ -158,17 +158,17 @@ export function formatTimestampWithRelative(dateInput, prefix = 'Observed') {
 
 /**
  * Classifies temporal observation status based strictly on elapsed hours:
- * - LIVE: <= 6h
- * - RECENT: > 6h and <= 24h
- * - HISTORICAL: > 24h
+ * - LIVE: <= 24h (1440m)
+ * - RECENT: > 24h and <= 7 days (168h)
+ * - HISTORICAL: > 7 days (> 168h)
  */
 export function classifyTemporalStatus(dateInput) {
   const d = parseDateSafe(dateInput);
   if (!d) return 'HISTORICAL';
 
   const elapsedHours = (Date.now() - d.getTime()) / (1000 * 60 * 60);
-  if (elapsedHours <= 6.0) return 'LIVE';
-  if (elapsedHours <= 24.0) return 'RECENT';
+  if (elapsedHours <= 24.0) return 'LIVE';
+  if (elapsedHours <= 168.0) return 'RECENT';
   return 'HISTORICAL';
 }
 
@@ -198,3 +198,99 @@ export function getCountdownRemaining(targetTimestamp) {
     isDue: totalSeconds <= 0
   };
 }
+
+/**
+ * Formats a duration in minutes into a human-readable observation age string.
+ */
+export function formatFreshnessDuration(mins) {
+  if (mins === null || mins === undefined || isNaN(mins)) return 'UNKNOWN';
+  if (mins < 1) return 'Observed just now';
+  if (mins < 60) return `Observed ${Math.round(mins)} minutes ago`;
+  const hours = mins / 60;
+  if (hours < 24) return `Observed ${hours.toFixed(1)} hours ago`;
+  const days = hours / 24;
+  return `Observed ${days.toFixed(1)} days ago`;
+}
+
+/**
+ * Core Temporal Auditor & Normalizer:
+ * Guarantees 100% logical consistency across all temporal fields.
+ * Ensures observation_freshness_minutes is ALWAYS derived from last_detected timestamp,
+ * eliminating impossible combinations like "Freshness: 0 min ago & Last Detected: 26 days ago".
+ */
+export function deriveConsistentTemporalMetrics(record) {
+  if (!record) {
+    return {
+      first_detected: null,
+      last_detected: null,
+      first_date: null,
+      last_date: null,
+      freshness_minutes: null,
+      formatted_freshness: 'UNKNOWN',
+      temporal_status: 'HISTORICAL',
+      incident_age_hours: 0,
+      active_duration_hours: 0,
+    };
+  }
+
+  const isDemo = record._isDemo === true || record.is_demo === true || record.stream_type === 'demo';
+
+  // Resolve timestamp candidates
+  const lastStr = record.last_detected || record.acq_date || null;
+  const firstStr = record.first_detected || lastStr;
+
+  const lastDate = parseDateSafe(lastStr);
+  const firstDate = parseDateSafe(firstStr);
+
+  const now = Date.now();
+  let freshnessMinutes = null;
+
+  if (lastDate) {
+    freshnessMinutes = Math.max(0, Math.round((now - lastDate.getTime()) / (60 * 1000)));
+  } else if (typeof record.observation_freshness_minutes === 'number' && record.observation_freshness_minutes > 0) {
+    freshnessMinutes = Math.round(record.observation_freshness_minutes);
+  }
+
+  // Derive temporal status strictly from freshnessMinutes & demo flag:
+  // DEMO: Seeded / fallback demonstration data (never LIVE)
+  // LIVE: <= 24h (1440m)
+  // RECENT: > 24h and <= 7d (10080m)
+  // HISTORICAL: > 7d (> 10080m)
+  let temporalStatus = 'HISTORICAL';
+  if (isDemo) {
+    temporalStatus = 'DEMO';
+  } else if (freshnessMinutes !== null) {
+    if (freshnessMinutes <= 1440) temporalStatus = 'LIVE';
+    else if (freshnessMinutes <= 10080) temporalStatus = 'RECENT';
+    else temporalStatus = 'HISTORICAL';
+  }
+
+  // Incident age (elapsed from first detection to now)
+  let incidentAgeHours = 0;
+  if (firstDate) {
+    incidentAgeHours = Math.max(0, Number(((now - firstDate.getTime()) / (3600 * 1000)).toFixed(1)));
+  } else if (typeof record.incident_age_hours === 'number') {
+    incidentAgeHours = record.incident_age_hours;
+  }
+
+  // Active duration (first detection to last detection)
+  let activeDurationHours = 0;
+  if (firstDate && lastDate) {
+    activeDurationHours = Math.max(0, Number(((lastDate.getTime() - firstDate.getTime()) / (3600 * 1000)).toFixed(1)));
+  } else if (typeof record.active_duration_hours === 'number') {
+    activeDurationHours = record.active_duration_hours;
+  }
+
+  return {
+    first_detected: firstStr,
+    last_detected: lastStr,
+    first_date: firstDate,
+    last_date: lastDate,
+    freshness_minutes: freshnessMinutes,
+    formatted_freshness: formatFreshnessDuration(freshnessMinutes),
+    temporal_status: temporalStatus,
+    incident_age_hours: incidentAgeHours,
+    active_duration_hours: activeDurationHours,
+  };
+}
+

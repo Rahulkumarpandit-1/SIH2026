@@ -34,6 +34,7 @@ from app.scoring.classifier import (
 )
 from app.dataset.ground_truth import GroundTruthRegistry, GroundTruthReviewRequest, TargetClass
 from app.dataset.builder import DatasetBuilder
+from app.core.regions import tag_coordinates
 from app.models.schemas import (
     MLPredictRequest, 
     MLPredictResponse, 
@@ -144,8 +145,8 @@ class PipelineService:
                 "satellite": obs.satellite,
                 "instrument": obs.instrument,
                 "stream_type": getattr(obs, "stream_type", "historical") or "historical",
-                "state": getattr(obs, "state", "Gujarat") or "Gujarat",
-                "region_code": getattr(obs, "region_code", "WEST_GUJARAT") or "WEST_GUJARAT"
+                "state": (getattr(obs, "state", None) if getattr(obs, "state", None) and getattr(obs, "state", None) != "Gujarat" else tag_coordinates(obs.latitude, obs.longitude)[0]),
+                "region_code": (getattr(obs, "region_code", None) if getattr(obs, "region_code", None) and getattr(obs, "region_code", None) != "WEST_GUJARAT" else tag_coordinates(obs.latitude, obs.longitude)[1])
             })
         df_obs = pd.DataFrame(data)
 
@@ -175,11 +176,13 @@ class PipelineService:
                 "region_code": lambda s: s.iloc[0] if len(s) > 0 else "WEST_GUJARAT",
                 "state": lambda s: s.iloc[0] if len(s) > 0 else "Gujarat"
             }).to_dict(orient="index")
-            scored_clusters_df["region_code"] = scored_clusters_df["cluster_id"].map(
-                lambda cid: cluster_meta.get(cid, {}).get("region_code", "WEST_GUJARAT")
+            scored_clusters_df["region_code"] = scored_clusters_df.apply(
+                lambda r: cluster_meta.get(r["cluster_id"], {}).get("region_code") or tag_coordinates(float(r.get("centroid_lat", 20.0)), float(r.get("centroid_lon", 70.0)))[1],
+                axis=1
             )
-            scored_clusters_df["state"] = scored_clusters_df["cluster_id"].map(
-                lambda cid: cluster_meta.get(cid, {}).get("state", "Gujarat")
+            scored_clusters_df["state"] = scored_clusters_df.apply(
+                lambda r: cluster_meta.get(r["cluster_id"], {}).get("state") or tag_coordinates(float(r.get("centroid_lat", 20.0)), float(r.get("centroid_lon", 70.0)))[0],
+                axis=1
             )
 
         # 3.5. Meteorological Context Enrichment (Open-Meteo)
@@ -266,6 +269,20 @@ class PipelineService:
         scored_clusters_df["incident_age_hours"] = [t["incident_age_hours"] for t in temporal_intelligences]
         scored_clusters_df["active_duration_hours"] = [t["active_duration_hours"] for t in temporal_intelligences]
         scored_clusters_df["observation_freshness_minutes"] = [t["observation_freshness_minutes"] for t in temporal_intelligences]
+
+        cluster_streams = []
+        live_counts = []
+        for _, row in scored_clusters_df.iterrows():
+            cid = str(row["cluster_id"])
+            c_obs = enriched_df[enriched_df["cluster_id"] == cid]
+            if "stream_type" in c_obs.columns and (c_obs["stream_type"] == "near_real_time").any():
+                cluster_streams.append("near_real_time")
+                live_counts.append(int((c_obs["stream_type"] == "near_real_time").sum()))
+            else:
+                cluster_streams.append("historical")
+                live_counts.append(0)
+        scored_clusters_df["stream_type"] = cluster_streams
+        scored_clusters_df["live_detections_count"] = live_counts
 
         # Sync with Persistent Incident Registry in DB
         try:

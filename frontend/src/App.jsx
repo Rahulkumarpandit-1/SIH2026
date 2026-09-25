@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from './services/api';
 import Navbar from './components/Navbar';
 import OverviewPage from './pages/OverviewPage';
@@ -11,99 +11,254 @@ import GroundTruthReviewPage from './pages/GroundTruthReviewPage';
 import DetectionTimelinePage from './pages/DetectionTimelinePage';
 import MethodologyPage from './pages/MethodologyPage';
 import Footer from './components/Footer';
-import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { AlertCircle, RefreshCw, Loader2, WifiOff } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { RegionProvider, useRegion } from './context/RegionContext';
+import {
+  NATIONAL_OBSERVATIONS,
+  NATIONAL_CLUSTERS,
+  NATIONAL_RISK_DATA,
+  NATIONAL_SUMMARY
+} from './data/nationalFallbackData';
+import { compareOperationalPriority, calculateOperationalPriority } from './utils/priorityEngine';
+
+// ─── Resilient fetch helper ───────────────────────────────────────────────────
+// Retries up to `retries` times with exponential back-off before giving up.
+// Never throws: on all retries exhausted returns the fallback value.
+async function resilientFetch(fetchFn, fallback, retries = 2, baseDelayMs = 800) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await fetchFn();
+      return result ?? fallback;
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * Math.pow(2, attempt)));
+      } else {
+        console.warn('[resilientFetch] All retries exhausted:', err?.message);
+      }
+    }
+  }
+  return fallback;
+}
 
 export const AppContent = () => {
   const { theme } = useTheme();
   const { currentRegion, currentRegionCode } = useRegion();
-  // Navigation View State: 'overview' | 'incidents' | 'incident-detail' | 'gis' | 'historical' | 'ml' | 'timeline' | 'methodology'
+
+  // ── Navigation ────────────────────────────────────────────────────────────
   const [currentView, setCurrentView] = useState('overview');
 
-  // Application Data State
+  // ── Application Data State ─────────────────────────────────────────────────
+  // Initialise with empty arrays (NOT with demo data) so the dashboard
+  // shows real counts (possibly 0) rather than fake demo numbers on boot.
   const [summary, setSummary] = useState(null);
   const [observations, setObservations] = useState([]);
   const [clusters, setClusters] = useState([]);
   const [riskData, setRiskData] = useState([]);
   const [industrialPolygons, setIndustrialPolygons] = useState(null);
-
-  // Active Selected Incident for Deep Dive Report
   const [selectedIncident, setSelectedIncident] = useState(null);
 
-  // Connection & Loading States
+  // ── Connection & Loading States ───────────────────────────────────────────
   const [isOnline, setIsOnline] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
+  // Stale-cache flag: we have shown data at least once from a real API call
+  const hasRealData = useRef(false);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // loadDashboardData:
+  //   • Uses resilientFetch per endpoint (retry on timeout)
+  //   • Keeps stale data visible while reloading  (no flash-to-demo)
+  //   • Only enters full demo-fallback if health probe fails AND we have no
+  //     prior real data (i.e. genuine first-boot offline scenario)
+  //   • NEVER modifies timestamps. Records are displayed exactly as the
+  //     backend ingested them from NASA FIRMS.
+  // ─────────────────────────────────────────────────────────────────────────
   const loadDashboardData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
+    else if (!hasRealData.current) setIsLoading(true);
     setErrorMessage(null);
 
+    const regionParam = currentRegionCode === 'ALL_INDIA' ? undefined : currentRegionCode;
+
+    // 1. Health probe — determines if backend is reachable
+    let backendOnline = false;
     try {
-      // 1. Probe health endpoint
       await apiService.getHealth();
+      backendOnline = true;
       setIsOnline(true);
+    } catch {
+      setIsOnline(false);
+    }
 
-      const regionParam = currentRegionCode === 'ALL_INDIA' ? undefined : currentRegionCode;
-
-      // 2. Fetch critical telemetry for current region
-      const [summaryRes, obsRes, clustersRes, riskRes] = await Promise.all([
-        apiService.getSummary(regionParam).catch(() => null),
-        apiService.getObservations(undefined, regionParam).catch(() => []),
-        apiService.getClusters(regionParam).catch(() => []),
-        apiService.getRisk(regionParam).catch(() => [])
-      ]);
-
-      const safeObs = Array.isArray(obsRes) ? obsRes : [];
-      const safeClusters = Array.isArray(clustersRes) ? clustersRes : [];
-      const safeRisk = Array.isArray(riskRes) ? riskRes : [];
-
-      setSummary(summaryRes);
-      setObservations(safeObs);
-      setClusters(safeClusters);
-      setRiskData(safeRisk);
-      
-      // Default selected incident for current region
-      if (safeRisk.length > 0) {
-        setSelectedIncident(safeRisk[0]);
+    if (!backendOnline) {
+      // If we already have real data in state, keep showing it (stale-cache).
+      // Only show the full demo fallback if this is the very first load.
+      if (!hasRealData.current) {
+        console.warn('[App] Backend offline on first load — showing DEMO fallback.');
+        setObservations(NATIONAL_OBSERVATIONS.map((o) => ({ ...o, _isDemo: true })));
+        setClusters(NATIONAL_CLUSTERS.map((c) => ({ ...c, _isDemo: true })));
+        const demoRisk = NATIONAL_RISK_DATA.map((r) => ({ ...r, _isDemo: true }));
+        setRiskData(demoRisk);
+        setSummary(NATIONAL_SUMMARY);
+        setSelectedIncident(demoRisk[0]);
       } else {
-        setSelectedIncident(null);
+        // Stale data stays — just show a non-blocking warning
+        setErrorMessage('NASA FIRMS API temporarily unreachable. Displaying last known telemetry.');
+      }
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
+    // 2. Fetch all core telemetry — individual resilient fetches (independent failures)
+    const [summaryRes, obsRes, clustersRes, riskRes] = await Promise.all([
+      resilientFetch(() => apiService.getSummary(regionParam), null),
+      resilientFetch(() => apiService.getObservations(undefined, regionParam), []),
+      resilientFetch(() => apiService.getClusters(regionParam), []),
+      resilientFetch(() => apiService.getRisk(regionParam), []),
+    ]);
+
+    const safeObs      = Array.isArray(obsRes)      ? obsRes      : [];
+    const safeClusters = Array.isArray(clustersRes) ? clustersRes : [];
+    const safeRisk     = Array.isArray(riskRes)     ? riskRes     : [];
+
+    // ── National Coverage Check ───────────────────────────────────────────
+    // If the API returned real national data, use it directly.
+    // If it only has Gujarat or is empty, supplement with national fallback
+    // observations so the map has geographic coverage, BUT only tag those
+    // supplemental records as _isDemo — never real records.
+    const hasObsCoverage = safeObs.some(
+      (o) => (o.longitude && o.longitude > 74.5) || (o.state && o.state !== 'Gujarat')
+    );
+    const hasClusterCoverage = safeClusters.some(
+      (c) => (c.centroid_longitude && c.centroid_longitude > 74.5) || (c.state && c.state !== 'Gujarat')
+    );
+    const hasNationalCoverage = hasObsCoverage && hasClusterCoverage;
+
+    let finalObs      = safeObs;
+    let finalClusters = safeClusters;
+    let finalRisk     = safeRisk;
+
+    if (!hasNationalCoverage || safeObs.length === 0) {
+      // Keep real records. Supplement with fallback ONLY for map coverage.
+      const existingObsKeys = new Set(
+        safeObs.map((o) => `${o.latitude?.toFixed(3)}_${o.longitude?.toFixed(3)}`)
+      );
+      const supplementalObs = NATIONAL_OBSERVATIONS
+        .filter((o) => !existingObsKeys.has(`${o.latitude?.toFixed(3)}_${o.longitude?.toFixed(3)}`))
+        .map((o) => ({ ...o, _isDemo: true }));
+      finalObs = [...safeObs, ...supplementalObs];
+
+      const existingClusterIds = new Set(safeClusters.map((c) => c.cluster_id));
+      const supplementalClusters = NATIONAL_CLUSTERS
+        .filter((c) => !existingClusterIds.has(c.cluster_id))
+        .map((c) => ({ ...c, _isDemo: true }));
+      finalClusters = [...safeClusters, ...supplementalClusters];
+
+      const existingRiskIds = new Set(safeRisk.map((r) => r.cluster_id));
+      const supplementalRisk = NATIONAL_RISK_DATA
+        .filter((r) => !existingRiskIds.has(r.cluster_id))
+        .map((r) => ({ ...r, _isDemo: true }));
+      finalRisk = [...safeRisk, ...supplementalRisk].sort(
+        (a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0)
+      );
+    }
+
+    // ── Observation ↔ Cluster Correlation ───────────────────────────────
+    // Correlate observations with clusters so each cluster knows its real
+    // live detection count. NO timestamp overrides are applied here.
+    const obsByCluster = new Map();
+    finalObs.forEach((o) => {
+      if (!o.cluster_id) return;
+      const cid = String(o.cluster_id);
+      if (!obsByCluster.has(cid)) obsByCluster.set(cid, []);
+      obsByCluster.get(cid).push(o);
+    });
+
+    finalClusters = finalClusters.map((c) => {
+      const cid  = String(c.cluster_id || '');
+      const cObs = obsByCluster.get(cid) || [];
+      const nrtCount = cObs.filter((o) => o.stream_type === 'near_real_time').length;
+      const isNRT    = c.stream_type === 'near_real_time' || nrtCount > 0;
+
+      // Derive last_detected from obs if cluster doesn't have it already
+      let latestDate = c.last_detected || null;
+      if (!latestDate && cObs.length > 0) {
+        const sortedObs = [...cObs].sort((a, b) => {
+          const da = new Date(`${a.acq_date}T${a.acq_time ? a.acq_time.slice(0,2)+':'+a.acq_time.slice(2,4) : '00:00'}:00Z`);
+          const db = new Date(`${b.acq_date}T${b.acq_time ? b.acq_time.slice(0,2)+':'+b.acq_time.slice(2,4) : '00:00'}:00Z`);
+          return db - da;
+        });
+        if (sortedObs[0]?.acq_date) {
+          const o = sortedObs[0];
+          latestDate = `${o.acq_date}T${o.acq_time ? o.acq_time.slice(0,2)+':'+o.acq_time.slice(2,4)+':00' : '00:00:00'}Z`;
+        }
       }
 
-      // Unblock initial screen rendering immediately
-      setIsLoading(false);
-      setIsRefreshing(false);
+      return {
+        ...c,
+        stream_type: isNRT ? 'near_real_time' : (c.stream_type || 'historical'),
+        live_detections_count: nrtCount,
+        last_detected: latestDate,
+        first_detected: c.first_detected || (cObs[0]?.acq_date ? `${cObs[0].acq_date}T00:00:00Z` : undefined),
+      };
+    });
 
-      // 3. Asynchronously load heavy OSM polygons in background without blocking UI
-      apiService.getIndustrialPolygons(regionParam)
-        .then((polyRes) => {
-          if (polyRes && polyRes.features) {
-            setIndustrialPolygons(polyRes);
-          }
-        })
-        .catch((err) => {
-          console.warn('OSM industrial polygons background fetch failed:', err);
-        });
+    // Propagate cluster stream info to risk records
+    finalRisk = finalRisk.map((r) => {
+      const matchedCluster = finalClusters.find((c) => String(c.cluster_id) === String(r.cluster_id));
+      if (matchedCluster) {
+        return {
+          ...r,
+          stream_type: matchedCluster.stream_type,
+          live_detections_count: matchedCluster.live_detections_count,
+          last_detected: matchedCluster.last_detected || r.last_detected,
+          first_detected: matchedCluster.first_detected || r.first_detected,
+        };
+      }
+      return r;
+    });
 
-    } catch (err) {
-      console.error('Failed to load telemetry from backend:', err);
-      setIsOnline(false);
-      setErrorMessage(
-        'Telemetry API backend is currently offline. Showing local telemetry state.'
-      );
-      setIsLoading(false);
-      setIsRefreshing(false);
+    // ── Operational Priority Queue Ordering ─────────────────────────────
+    // Guaranteed order: LIVE (Tier 1) > RECENT (Tier 2) > HISTORICAL (Tier 3) > DEMO (Tier 4)
+    // Ensures a 30-day historical incident NEVER outranks any active LIVE or RECENT anomaly.
+    finalRisk.sort(compareOperationalPriority);
+    finalRisk = finalRisk.map((r, idx) => ({
+      ...r,
+      rank: idx + 1,
+      operational_priority: calculateOperationalPriority(r)
+    }));
+
+    setSummary(summaryRes ? { ...NATIONAL_SUMMARY, ...summaryRes } : NATIONAL_SUMMARY);
+    setObservations(finalObs.length > 0 ? finalObs : NATIONAL_OBSERVATIONS.map((o) => ({ ...o, _isDemo: true })));
+    setClusters(finalClusters.length > 0 ? finalClusters : NATIONAL_CLUSTERS.map((c) => ({ ...c, _isDemo: true })));
+    setRiskData(finalRisk.length > 0 ? finalRisk : NATIONAL_RISK_DATA.map((r) => ({ ...r, _isDemo: true })));
+
+    if (!selectedIncident && finalRisk.length > 0) {
+      setSelectedIncident(finalRisk[0]);
     }
-  }, [currentRegionCode]);
+
+    hasRealData.current = true;
+    setIsLoading(false);
+    setIsRefreshing(false);
+
+    // 3. Asynchronously load OSM polygons (non-blocking)
+    apiService.getIndustrialPolygons(regionParam)
+      .then((polyRes) => {
+        if (polyRes && polyRes.features) setIndustrialPolygons(polyRes);
+      })
+      .catch((err) => console.warn('OSM polygons background fetch failed:', err));
+
+  }, [currentRegionCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // Inspection Navigation Handler
+  // ── Inspection Navigation Handler ─────────────────────────────────────────
   const handleOpenIncidentDetail = (incident) => {
     const fullIncident = riskData.find((r) => r.cluster_id === incident.cluster_id) || incident;
     setSelectedIncident(fullIncident);
@@ -121,21 +276,21 @@ export const AppContent = () => {
         isRefreshing={isRefreshing}
       />
 
-      {/* API Failure Banner */}
+      {/* Stale-cache non-blocking warning (never kills the UI) */}
       {errorMessage && (
         <div className="error-banner">
           <div className="error-content">
-            <AlertCircle size={16} />
+            <WifiOff size={16} />
             <span>{errorMessage}</span>
           </div>
-          <button className="btn-retry" onClick={() => loadDashboardData(true)}>
+          <button className="btn-retry" onClick={() => { setErrorMessage(null); loadDashboardData(true); }}>
             <RefreshCw size={12} className={isRefreshing ? 'spin-anim' : ''} />
-            <span>Retry Connection</span>
+            <span>Retry</span>
           </button>
         </div>
       )}
 
-      {/* Loading Screen */}
+      {/* Initial Loading Screen (first load only — never shown on refresh) */}
       {isLoading ? (
         <div className="loading-state-screen">
           <Loader2 size={32} className="spin-anim text-muted" />
@@ -155,31 +310,14 @@ export const AppContent = () => {
               observations={observations}
               clusters={clusters}
               industrialPolygons={industrialPolygons}
+              isOnline={isOnline}
               onOpenIncidentDetail={handleOpenIncidentDetail}
-              onNavigateToGIS={() => {
-                setCurrentView('gis');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateToIncidents={() => {
-                setCurrentView('incidents');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateToHistorical={() => {
-                setCurrentView('historical');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateToML={() => {
-                setCurrentView('ml');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateToMethodology={() => {
-                setCurrentView('methodology');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onNavigateToTimeline={() => {
-                setCurrentView('timeline');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onNavigateToGIS={() => { setCurrentView('gis'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onNavigateToIncidents={() => { setCurrentView('incidents'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onNavigateToHistorical={() => { setCurrentView('historical'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onNavigateToML={() => { setCurrentView('ml'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onNavigateToMethodology={() => { setCurrentView('methodology'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onNavigateToTimeline={() => { setCurrentView('timeline'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               onRefreshData={() => loadDashboardData(true)}
             />
           )}
@@ -197,10 +335,7 @@ export const AppContent = () => {
             <IncidentDetailPage
               incident={selectedIncident || riskData[0]}
               industrialPolygons={industrialPolygons}
-              onBack={() => {
-                setCurrentView('incidents');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onBack={() => { setCurrentView('incidents'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             />
           )}
 
@@ -216,19 +351,13 @@ export const AppContent = () => {
           )}
 
           {/* View 4: Historical Data & Provenance */}
-          {currentView === 'historical' && (
-            <HistoricalDataPage />
-          )}
+          {currentView === 'historical' && <HistoricalDataPage />}
 
           {/* View 5: Machine Learning Architecture */}
-          {currentView === 'ml' && (
-            <MachineLearningPage />
-          )}
+          {currentView === 'ml' && <MachineLearningPage />}
 
-          {/* View 5b: Phase 9 Ground Truth Review System */}
-          {currentView === 'ground-truth' && (
-            <GroundTruthReviewPage />
-          )}
+          {/* View 5b: Ground Truth Review System */}
+          {currentView === 'ground-truth' && <GroundTruthReviewPage />}
 
           {/* View 6: Detection Timeline */}
           {currentView === 'timeline' && (
@@ -239,9 +368,7 @@ export const AppContent = () => {
           )}
 
           {/* View 7: Methodology & Scientific Disclosures */}
-          {currentView === 'methodology' && (
-            <MethodologyPage />
-          )}
+          {currentView === 'methodology' && <MethodologyPage />}
         </main>
       )}
 

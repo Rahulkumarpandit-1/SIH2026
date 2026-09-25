@@ -530,17 +530,17 @@ class ExposureAssetResponse(BaseModel):
 
 class TemporalIntelligenceResult(BaseModel):
     """Observation-derived temporal metrics and freshness indicators."""
-    first_detected: str = Field(..., description="Earliest satellite detection timestamp (ISO UTC)")
-    last_detected: str = Field(..., description="Most recent satellite detection timestamp (ISO UTC)")
-    incident_age_hours: float = Field(..., description="Elapsed hours since first satellite observation")
-    active_duration_hours: float = Field(..., description="Observed combustion span in hours")
-    detection_count: int = Field(..., description="Total satellite detections contributing to incident")
-    observation_freshness_minutes: float = Field(..., description="Elapsed minutes since latest satellite pass")
-    temporal_status: Literal["RECENTLY_OBSERVED", "RECENT", "HISTORICAL"] = Field(
+    first_detected: Optional[str] = Field(default=None, description="Earliest satellite detection timestamp (ISO UTC)")
+    last_detected: Optional[str] = Field(default=None, description="Most recent satellite detection timestamp (ISO UTC)")
+    incident_age_hours: float = Field(default=0.0, description="Elapsed hours since first satellite observation")
+    active_duration_hours: float = Field(default=0.0, description="Observed combustion span in hours")
+    detection_count: int = Field(default=0, description="Total satellite detections contributing to incident")
+    observation_freshness_minutes: Optional[float] = Field(default=None, description="Elapsed minutes since latest satellite pass")
+    temporal_status: Literal["LIVE", "RECENT", "HISTORICAL", "DEMO", "RECENTLY_OBSERVED", "ACTIVE"] = Field(
         ..., 
-        description="Observation-derived temporal status: RECENTLY_OBSERVED (<=6h), RECENT (6-24h), HISTORICAL (>24h)"
+        description="Observation-derived temporal status: LIVE (<=24h), RECENT (24h-7d), HISTORICAL (>7d), DEMO"
     )
-    is_recently_observed: bool = Field(..., description="True if latest observation occurred within 6 hours")
+    is_recently_observed: bool = Field(default=False, description="True if latest observation occurred within 24 hours")
     scientific_disclosure: str = Field(
         default="Status is derived strictly from latest available satellite overpass (NASA FIRMS) and does not represent real-time physical ground truth.",
         description="Mandatory scientific disclaimer on observation latency"
@@ -555,8 +555,8 @@ class IncidentSummaryResponse(BaseModel):
     facility_name: str
     state: str
     region_code: str
-    first_detected: datetime
-    last_detected: datetime
+    first_detected: Optional[datetime] = None
+    last_detected: Optional[datetime] = None
     risk_score: float
     risk_level: Optional[str] = "LOW"
     action_code: Optional[str] = "BACKGROUND_LOG"

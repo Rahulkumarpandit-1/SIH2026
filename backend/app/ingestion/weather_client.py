@@ -15,6 +15,7 @@ class WeatherClient:
 
     # In-memory thread-safe dictionary cache: { "lat_lon": { "cached_at": timestamp, "data": {...} } }
     _cache: Dict[str, Dict[str, Any]] = {}
+    _circuit_open_until: float = 0.0
 
     @classmethod
     def _deg_to_cardinal(cls, deg: float) -> str:
@@ -52,26 +53,52 @@ class WeatherClient:
         return "LOW_WIND_SPREAD_RISK"
 
     @classmethod
+    def _get_baseline_fallback(cls) -> Dict[str, Any]:
+        return {
+            "wind_speed_kmh": 14.0,
+            "wind_direction_deg": 220,
+            "wind_cardinal": "SW",
+            "temperature_c": 32.0,
+            "cloud_cover_pct": 20,
+            "precipitation_mm": 0.0,
+            "observation_confidence": "HIGH",
+            "spread_concern": "MODERATE_WIND_SPREAD_RISK",
+            "plume_dispersion_heading": "NE",
+            "cached": True,
+            "source": "Fallback Baseline",
+            "timestamp_utc": None
+        }
+
+    @classmethod
     def get_weather_context(cls, lat: float, lon: float) -> Dict[str, Any]:
         """
         Fetches or retrieves cached weather parameters for given geographic coordinates.
-        Uses 2-decimal spatial quantization (~1.1km grid cell) for cache consolidation.
+        Uses 0.5-degree (~55km regional cell) spatial quantization for cache consolidation.
         """
-        cache_key = f"{round(lat, 2)}_{round(lon, 2)}"
+        grid_lat = round(lat * 2) / 2
+        grid_lon = round(lon * 2) / 2
+        cache_key = f"{grid_lat}_{grid_lon}"
+        legacy_key = f"{round(lat, 2)}_{round(lon, 2)}"
         now = time.time()
 
-        # 1. Check in-memory cache
-        if cache_key in cls._cache:
-            entry = cls._cache[cache_key]
+        # 1. Check in-memory cache (supports both precise injection key and regional cell)
+        entry = cls._cache.get(legacy_key) or cls._cache.get(cache_key)
+        if entry:
             if now - entry["cached_at"] < cls.CACHE_TTL_SECONDS:
                 cached_data = dict(entry["data"])
                 cached_data["cached"] = True
                 return cached_data
 
-        # 2. Query Open-Meteo REST API
+        # 2. Check circuit breaker if rate-limited
+        if now < cls._circuit_open_until:
+            fallback = cls._get_baseline_fallback()
+            cls._cache[cache_key] = {"cached_at": now, "data": fallback}
+            return fallback
+
+        # 3. Query Open-Meteo REST API
         params = {
-            "latitude": lat,
-            "longitude": lon,
+            "latitude": grid_lat,
+            "longitude": grid_lon,
             "current": "temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m",
             "wind_speed_unit": "kmh"
         }
@@ -111,22 +138,10 @@ class WeatherClient:
                 return weather_data
 
         except Exception as e:
+            if "429" in str(e):
+                cls._circuit_open_until = now + 600  # Back off 10m
             logger.warning(f"Open-Meteo fetch failed for ({lat}, {lon}): {e}. Using resilient baseline fallback.")
-            fallback_data = {
-                "wind_speed_kmh": 14.0,
-                "wind_direction_deg": 220,
-                "wind_cardinal": "SW",
-                "temperature_c": 32.0,
-                "cloud_cover_pct": 20,
-                "precipitation_mm": 0.0,
-                "observation_confidence": "HIGH",
-                "spread_concern": "MODERATE_WIND_SPREAD_RISK",
-                "plume_dispersion_heading": "NE",
-                "cached": False,
-                "source": "Fallback Baseline",
-                "timestamp_utc": None
-            }
-            # Cache fallback for 5 minutes so subsequent pipeline calls don't repeatedly block on network timeouts
+            fallback_data = cls._get_baseline_fallback()
             cls._cache[cache_key] = {"cached_at": now, "data": fallback_data}
             return fallback_data
 

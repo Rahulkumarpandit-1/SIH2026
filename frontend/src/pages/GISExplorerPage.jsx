@@ -9,6 +9,9 @@ import { useTheme } from '../context/ThemeContext';
 import { useRegion } from '../context/RegionContext';
 import { MAP_PROVIDERS } from '../services/mapConfig';
 import MapLayerControl from '../components/MapLayerControl';
+import { getDataStatus, deriveConsistentTemporalMetrics } from '../utils/dataProvenance';
+import { OperationalPriorityBadge, calculateOperationalPriority, compareOperationalPriority } from '../utils/priorityEngine';
+import { formatToIST } from '../utils/dateUtils';
 
 const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [], regionCenter, regionZoom, regionCode }) => {
   const map = useMap();
@@ -18,7 +21,7 @@ const MapFocusController = ({ targetCoords, triggerFitAll, clusters = [], region
   // Whenever corridor switches, ALWAYS fly to the selected region center & default zoom
   useEffect(() => {
     if (centerLat !== undefined && centerLon !== undefined && !isNaN(centerLat) && !isNaN(centerLon)) {
-      map.flyTo([centerLat, centerLon], regionZoom || 6, { duration: 1.4 });
+      map.flyTo([centerLat, centerLon], regionZoom ?? 5, { duration: 1.4 });
     }
   }, [regionCode, centerLat, centerLon, regionZoom, map]);
 
@@ -61,10 +64,29 @@ export const GISExplorerPage = ({
   const [showClusters, setShowClusters] = useState(true);
   const [showPolygons, setShowPolygons] = useState(true);
   const [selectedRisk, setSelectedRisk] = useState('ALL');
+  // Default startup: OPERATIONAL (LIVE + RECENT)
+  const [statusFilter, setStatusFilter] = useState('OPERATIONAL');
   const [selectedCluster, setSelectedCluster] = useState(null);
   const [targetCoords, setTargetCoords] = useState(null);
   const [triggerFitAll, setTriggerFitAll] = useState(0);
   const [secondsAgo, setSecondsAgo] = useState(0);
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 1024 : false));
+  // In default on mobile / tablet / split view (<= 1200px), map legend is ALWAYS collapsed (false)
+  const [legendOpen, setLegendOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 1200 : false));
+  const [legendMinimized, setLegendMinimized] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 1024;
+      setIsMobile(mobile);
+      if (mobile) {
+        setLegendOpen(false); // Strictly auto-collapse on mobile/narrow viewports
+      }
+    };
+    handleResize(); // Execute on initial mount so mobile view always starts completely clean
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -82,7 +104,8 @@ export const GISExplorerPage = ({
   useEffect(() => {
     setTargetCoords(null);
     if (safeRisk.length > 0) {
-      setSelectedCluster(safeRisk[0]);
+      const sorted = [...safeRisk].sort(compareOperationalPriority);
+      setSelectedCluster(sorted[0]);
     } else {
       setSelectedCluster(null);
     }
@@ -93,11 +116,21 @@ export const GISExplorerPage = ({
 
   const filteredClusters = useMemo(() => {
     return safeClusters.filter((item) => {
-      const riskMeta = safeRisk.find((r) => r.cluster_id === item.cluster_id);
+      const riskMeta = safeRisk.find((r) => r.cluster_id === item.cluster_id) || item;
       if (selectedRisk !== 'ALL' && riskMeta?.risk_level !== selectedRisk) return false;
+      const { status } = getDataStatus(riskMeta);
+      if (statusFilter === 'OPERATIONAL') return status === 'LIVE' || status === 'RECENT';
+      if (statusFilter === 'LIVE') return status === 'LIVE';
+      if (statusFilter === 'RECENT') return status === 'RECENT';
+      if (statusFilter === 'HISTORICAL') return status === 'HISTORICAL';
+      if (statusFilter === 'DEMO') return status === 'DEMO';
       return true;
+    }).sort((a, b) => {
+      const riskA = safeRisk.find((r) => r.cluster_id === a.cluster_id) || a;
+      const riskB = safeRisk.find((r) => r.cluster_id === b.cluster_id) || b;
+      return compareOperationalPriority(riskA, riskB);
     });
-  }, [safeClusters, safeRisk, selectedRisk]);
+  }, [safeClusters, safeRisk, selectedRisk, statusFilter]);
 
   const filteredObservations = useMemo(() => {
     return safeObs.filter((item) => {
@@ -184,37 +217,107 @@ export const GISExplorerPage = ({
           <MapLayerControl
             activeLayer={layerType}
             onSelectLayer={setLayerType}
-            isDark={isDark}
           />
 
-          {/* Floating Map Legend */}
-          <div className="map-legend-float">
-            <div className="map-legend-title">Thermal Sensor Legend</div>
-            <div className="map-legend-items">
-              <span className="map-legend-item">
-                <span className="legend-dot" style={{ background: '#EF4444' }} /> Critical (&ge;75)
-              </span>
-              <span className="map-legend-item">
-                <span className="legend-dot" style={{ background: '#F97316' }} /> High (50-75)
-              </span>
-              <span className="map-legend-item">
-                <span className="legend-dot" style={{ background: '#F59E0B' }} /> Moderate (25-50)
-              </span>
-              <span className="map-legend-item">
-                <span className="legend-dot" style={{ background: '#10B981' }} /> Routine (&lt;25)
-              </span>
-              <span className="map-legend-item">
-                <span className="legend-poly-box" /> Industrial Perimeter
-              </span>
+          {/* Floating Map Legend Toggle Pill Button (Re-opens legend when collapsed) */}
+          {!legendOpen && (
+            <button
+              type="button"
+              className="map-legend-toggle-btn"
+              onClick={() => setLegendOpen(true)}
+              aria-label="Open Map Legend"
+              title="Open Map Legend"
+            >
+              <span>🗺️ Map Legend</span>
+            </button>
+          )}
+
+          {/* Backdrop for mobile legend sheet */}
+          {isMobile && legendOpen && (
+            <div 
+              className="map-legend-backdrop"
+              onClick={() => setLegendOpen(false)}
+            />
+          )}
+
+          {/* Floating Map Legend (Collapsible on mobile and desktop) */}
+          {legendOpen && (
+            <div className={`map-legend-float ${isMobile ? 'mobile-expanded' : ''} ${legendMinimized ? 'minimized' : ''}`}>
+              <div className="map-legend-header">
+                <div className="map-legend-title">🗺️ Map Legend</div>
+                <div className="map-legend-actions">
+                  <button
+                    type="button"
+                    onClick={() => setLegendMinimized(prev => !prev)}
+                    className="legend-action-btn"
+                    aria-label={legendMinimized ? "Expand Legend" : "Minimize Legend"}
+                    title={legendMinimized ? "Expand Legend" : "Minimize Legend"}
+                  >
+                    {legendMinimized ? '▢' : '—'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen(false)}
+                    className="legend-action-btn legend-close-btn"
+                    aria-label="Close Legend"
+                    title="Close Legend"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              {!legendMinimized && (
+                <>
+                  <div className="map-legend-subtitle">Operational Priority</div>
+                  <div className="map-legend-items">
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: '#EF4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.45)' }} /> 
+                      <span><strong>Critical Priority</strong> (Bright Red &bull; Pulsing Halo &ge;75)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: '#F97316', boxShadow: '0 0 0 2px rgba(249, 115, 22, 0.35)' }} /> 
+                      <span><strong>High Priority</strong> (Orange &bull; Orange Halo 50-75)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: '#EAB308' }} /> 
+                      <span><strong>Medium Priority</strong> (Yellow 25-50)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: '#10B981' }} /> 
+                      <span><strong>Low Priority</strong> (Green &lt;25)</span>
+                    </span>
+                  </div>
+
+                  <div className="map-legend-subtitle" style={{ marginTop: '0.4rem' }}>Incident Recency Tier</div>
+                  <div className="map-legend-items">
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: '#10B981', boxShadow: '0 0 0 3px rgba(16, 185, 129, 0.4)' }} /> 
+                      <span><strong>LIVE</strong> (&le;24h Green Pulse Ring)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: 'transparent', border: '2px solid #3B82F6' }} /> 
+                      <span><strong>RECENT</strong> (24h–7d Blue Ring)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: 'transparent', border: '1.5px dashed #6B7280' }} /> 
+                      <span><strong>HISTORICAL</strong> (&gt;7d Gray Dashed Ring)</span>
+                    </span>
+                    <span className="map-legend-item">
+                      <span className="legend-dot" style={{ background: 'transparent', border: '1.5px dashed #F59E0B' }} /> 
+                      <span><strong>DEMO</strong> (Seeded Amber Dashed Ring)</span>
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          )}
 
           <MapContainer
             key={`gis-explorer-${currentRegion?.region_code || 'ALL_INDIA'}-${layerType}`}
             center={defaultCenter}
             zoom={defaultZoom}
             preferCanvas={true}
-            style={{ width: '100%', height: '100%', minHeight: '640px' }}
+            style={{ width: '100%', height: '100%', minHeight: isMobile ? '72vh' : '82vh' }}
             scrollWheelZoom={true}
           >
             <MapFocusController 
@@ -244,7 +347,7 @@ export const GISExplorerPage = ({
               />
             )}
 
-            {/* Industrial Polygons Layer */}
+            {/* Industrial Polygons Layer (Filtered: polygons only, no point pins) */}
             {showPolygons && industrialPolygons && (
               <GeoJSON
                 key={`poly-${industrialPolygons.features?.length || 0}-${isDark ? 'dark' : 'light'}`}
@@ -256,6 +359,8 @@ export const GISExplorerPage = ({
                   fillOpacity: isDark ? 0.12 : 0.09,
                   dashArray: '4, 4'
                 }}
+                filter={(feature) => feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')}
+                pointToLayer={() => null}
                 onEachFeature={(feature, layer) => {
                   const props = feature.properties || {};
                   const name = props.name || 'Industrial Facility';
@@ -290,53 +395,145 @@ export const GISExplorerPage = ({
               );
             })}
 
-            {/* Physical Cluster Centroids */}
+            {/* Physical Cluster Centroids — Priority-first, LIVE pulsing, HISTORICAL muted */}
             {showClusters && filteredClusters.map((cluster) => {
-              const riskMeta = safeRisk.find((r) => r.cluster_id === cluster.cluster_id);
-              const rLevel = riskMeta?.risk_level ?? 'LOW';
-              const rScore = riskMeta?.risk_score ?? 0.0;
-              const rColor = getRiskColor(rLevel);
+              const riskMeta = safeRisk.find((r) => r.cluster_id === cluster.cluster_id) || cluster;
+              const priority = calculateOperationalPriority(riskMeta);
+              const temporal = deriveConsistentTemporalMetrics(riskMeta);
+              const isDemo = temporal.status === 'DEMO';
+              const isLive = temporal.status === 'LIVE';
+              const isHistorical = temporal.status === 'HISTORICAL';
               const isSelected = selectedCluster?.cluster_id === cluster.cluster_id;
 
+              const markerColor =
+                priority.level === 'CRITICAL' ? '#EF4444' :
+                priority.level === 'HIGH'     ? '#F97316' :
+                priority.level === 'MEDIUM'   ? '#EAB308' : '#10B981';
+
+              // Mute historical clusters visually
+              const fillOpacity = isHistorical ? 0.30 : 0.95;
+              const rColor = markerColor;
+              const rScore = riskMeta?.risk_score ?? cluster.risk_score ?? 0;
+              const rLevel = riskMeta?.risk_level ?? cluster.risk_level ?? 'LOW';
+
+              const radius = priority.level === 'CRITICAL' ? 10 : priority.level === 'HIGH' ? 8.5 : priority.level === 'MEDIUM' ? 7 : 5.5;
+
+              const ringConfig = {
+                LIVE:       { color: '#10B981', dashArray: null,  weight: 2.5, fillOpacity: 0.18, radius: radius + 4,   className: 'gis-pulse-ring-live' },
+                RECENT:     { color: '#3B82F6', dashArray: null,  weight: 2.0, fillOpacity: 0.10, radius: radius + 3.2, className: '' },
+                HISTORICAL: { color: '#6B7280', dashArray: '4,4', weight: 1.0, fillOpacity: 0,    radius: radius + 2.5, className: '' },
+                DEMO:       { color: '#F59E0B', dashArray: '3,3', weight: 1.8, fillOpacity: 0.10, radius: radius + 3,   className: '' },
+              };
+              const ring = ringConfig[temporal.status] || ringConfig.HISTORICAL;
+
               return (
-                <CircleMarker
-                  key={`cluster-${cluster.cluster_id}`}
-                  center={[cluster.centroid_latitude, cluster.centroid_longitude]}
-                  radius={rLevel === 'CRITICAL' ? 12 : 8}
-                  pathOptions={{
-                    fillColor: rColor,
-                    fillOpacity: 0.9,
-                    color: isSelected ? (isDark ? '#F0F4F8' : '#111111') : (isDark ? '#161B22' : '#FFFFFF'),
-                    weight: isSelected ? 2.5 : 1.5
-                  }}
-                  eventHandlers={{
-                    click: () => handleClusterClick(cluster)
-                  }}
-                >
+                <React.Fragment key={`cluster-group-${cluster.cluster_id}`}>
+                  {/* CRITICAL + LIVE only: Pulsing red halo */}
+                  {priority.level === 'CRITICAL' && isLive && (
+                    <CircleMarker
+                      center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                      radius={radius + 8}
+                      pathOptions={{
+                        fillColor: '#EF4444',
+                        fillOpacity: 0.40,
+                        color: '#DC2626',
+                        weight: 2,
+                        className: 'gis-pulse-halo-crit',
+                        interactive: false,
+                      }}
+                    />
+                  )}
+
+                  {/* HIGH + LIVE only: Orange halo */}
+                  {priority.level === 'HIGH' && isLive && (
+                    <CircleMarker
+                      center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                      radius={radius + 6}
+                      pathOptions={{
+                        fillColor: '#F97316',
+                        fillOpacity: 0.30,
+                        color: '#EA580C',
+                        weight: 1.8,
+                        className: 'gis-pulse-halo-high',
+                        interactive: false,
+                      }}
+                    />
+                  )}
+
+                  {/* Outer status ring — clear visual recency tier */}
+                  <CircleMarker
+                    center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                    radius={ring.radius}
+                    pathOptions={{
+                      fillColor: ring.color,
+                      fillOpacity: ring.fillOpacity,
+                      color: ring.color,
+                      weight: ring.weight,
+                      dashArray: ring.dashArray,
+                      className: ring.className,
+                      interactive: false,
+                    }}
+                  />
+
+                  {/* Cluster Centroid Dot */}
+                  <CircleMarker
+                    center={[cluster.centroid_latitude, cluster.centroid_longitude]}
+                    radius={radius}
+                    pathOptions={{
+                      fillColor: markerColor,
+                      fillOpacity,
+                      color: isSelected ? '#00E5FF' : (isDark ? '#0D1117' : '#FFFFFF'),
+                      weight: isSelected ? 2.5 : 1.5,
+                    }}
+                    eventHandlers={{ click: () => handleClusterClick(cluster) }}
+                  >
                   <Popup>
-                    <div style={{ fontSize: '0.8rem', lineHeight: '1.45', padding: '2px' }}>
-                      <strong>{cluster.cluster_id}</strong> &bull; {rScore.toFixed(1)}/100<br />
-                      <span>{cluster.nearest_facility_name}</span><br />
-                      <span className="font-mono text-muted" style={{ fontSize: '0.72rem' }}>{cluster.spatial_context}</span>
-                      <div style={{ marginTop: '0.4rem' }}>
-                        <button 
-                          className="btn-black-primary"
-                          style={{
-                            padding: '0.28rem 0.6rem',
-                            borderRadius: '3px',
-                            fontSize: '0.74rem',
-                            fontWeight: 600
-                          }}
-                          onClick={() => onOpenIncidentDetail(riskMeta || cluster)}
-                        >
-                          Inspect Report &rarr;
-                        </button>
+                    <div className="gis-clean-popup">
+                      {isDemo && (
+                        <div className="gis-popup-demo-banner">
+                          <span>⚠ DEMO DATA</span>
+                        </div>
+                      )}
+                      <div className="gis-popup-header">
+                        <div className="gis-popup-facility-name">
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: rColor, display: 'inline-block' }} />
+                          <strong>{cluster.nearest_facility_name || cluster.cluster_id}</strong>
+                        </div>
+                        <OperationalPriorityBadge incident={riskMeta} size="sm" />
                       </div>
+                      <div className="gis-popup-grid">
+                        <div className="gis-popup-row">
+                          <span className="gis-popup-k">Risk Score</span>
+                          <span className="gis-popup-v" style={{ color: rColor, fontWeight: 700 }}>
+                            {rScore.toFixed(1)}/100 ({rLevel})
+                          </span>
+                        </div>
+                        <div className="gis-popup-row">
+                          <span className="gis-popup-k">Status</span>
+                          <span className="gis-popup-v" style={{ color: temporal.config.color, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                            {isLive && <span className="dsb-live-dot" style={{ width: 5, height: 5 }} />}
+                            {temporal.config.label}
+                          </span>
+                        </div>
+                        <div className="gis-popup-row">
+                          <span className="gis-popup-k">Last Detection</span>
+                          <span className="gis-popup-v font-mono" style={{ fontSize: '0.72rem' }}>
+                            {temporal.lastDetectedStr ? formatToIST(temporal.lastDetectedStr) : 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+                      <button 
+                        className="btn-black-primary gis-popup-cta"
+                        onClick={() => onOpenIncidentDetail(riskMeta || cluster)}
+                      >
+                        Inspect Report &rarr;
+                      </button>
                     </div>
                   </Popup>
                 </CircleMarker>
-              );
-            })}
+              </React.Fragment>
+            );
+          })}
           </MapContainer>
         </div>
 

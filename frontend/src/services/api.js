@@ -20,7 +20,7 @@ const getApiBaseUrl = () => {
 
 export const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 30000,
+  timeout: 60000,  // 60s — backend pipeline can take ~45s on cold start
   headers: {
     'Content-Type': 'application/json',
   },

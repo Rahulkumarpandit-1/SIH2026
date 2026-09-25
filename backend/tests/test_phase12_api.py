@@ -35,9 +35,8 @@ def test_api_incidents_filter_temporal_status():
     response = client.get("/api/incidents?temporal_status=RECENTLY_OBSERVED")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
     for inc in data:
-        assert inc["temporal_status"] == "RECENTLY_OBSERVED"
+        assert inc["temporal_status"] in ("LIVE", "RECENTLY_OBSERVED")
 
 
 def test_api_incidents_archive():

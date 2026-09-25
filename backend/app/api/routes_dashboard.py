@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query, Response
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -43,6 +44,7 @@ from app.models.schemas import (
 from app.ingestion.weather_client import WeatherClient
 from app.spatial.exposure_engine import ExposureAnalysisService
 from app.scoring.facility_fingerprint import FacilityFingerprintEngine
+from app.core.regions import tag_coordinates
 from app.scoring.abnormality_engine import AbnormalityEngine
 from app.ml.ground_truth_service import GroundTruthService
 from app.ml.dataset_builder import MLDatasetBuilder
@@ -191,8 +193,8 @@ def get_observations(
             "incident_classification": str(row.get("incident_classification", "NON_INDUSTRIAL_RURAL")),
             "action_code": str(row.get("action_code", "BACKGROUND_LOG")),
             "stream_type": str(row.get("stream_type", "historical")),
-            "state": str(row.get("state", "Gujarat")),
-            "region_code": str(row.get("region_code", "WEST_GUJARAT"))
+            "state": str(row.get("state") if row.get("state") and row.get("state") != "Gujarat" else tag_coordinates(float(row["latitude"]), float(row["longitude"]))[0]),
+            "region_code": str(row.get("region_code") if row.get("region_code") and row.get("region_code") != "WEST_GUJARAT" else tag_coordinates(float(row["latitude"]), float(row["longitude"]))[1])
         })
 
     return results
@@ -215,18 +217,23 @@ def get_clusters(
 
     results = []
     for _, row in clusters_df.iterrows():
+        c_lat = float(row["centroid_lat"])
+        c_lon = float(row["centroid_lon"])
+        calc_st, calc_reg = tag_coordinates(c_lat, c_lon)
         results.append({
             "cluster_id": str(row["cluster_id"]),
             "incident_uuid": str(row.get("incident_uuid", row["cluster_id"])),
+            "stream_type": str(row.get("stream_type", "historical")),
+            "live_detections_count": int(row.get("live_detections_count", 0)),
             "status": str(row.get("status", "NEW")),
             "temporal_status": str(row.get("temporal_status", "HISTORICAL")),
-            "first_detected": str(row.get("first_detected", "")),
-            "last_detected": str(row.get("last_detected", "")),
-            "incident_age_hours": float(row.get("incident_age_hours", 0.0)),
-            "active_duration_hours": float(row.get("active_duration_hours", 0.0)),
-            "observation_freshness_minutes": float(row.get("observation_freshness_minutes", 0.0)),
-            "centroid_latitude": round(float(row["centroid_lat"]), 6),
-            "centroid_longitude": round(float(row["centroid_lon"]), 6),
+            "first_detected": str(row["first_detected"]) if pd.notna(row.get("first_detected")) and str(row.get("first_detected")).strip() not in ("", "nan", "None") else None,
+            "last_detected": str(row["last_detected"]) if pd.notna(row.get("last_detected")) and str(row.get("last_detected")).strip() not in ("", "nan", "None") else None,
+            "incident_age_hours": float(row.get("incident_age_hours", 0.0)) if pd.notna(row.get("incident_age_hours")) else None,
+            "active_duration_hours": float(row.get("active_duration_hours", 0.0)) if pd.notna(row.get("active_duration_hours")) else None,
+            "observation_freshness_minutes": float(row["observation_freshness_minutes"]) if pd.notna(row.get("observation_freshness_minutes")) and row.get("observation_freshness_minutes") is not None else None,
+            "centroid_latitude": round(c_lat, 6),
+            "centroid_longitude": round(c_lon, 6),
             "detection_count": int(row["total_detections"]),
             "active_days_count": int(row["active_days_count"]),
             "total_window_days": int(row["total_window_days"]),
@@ -242,8 +249,8 @@ def get_clusters(
             "spatial_context": str(row["spatial_context"]),
             "persistence_category": str(row.get("persistence_category", "UNKNOWN")),
             "incident_classification": str(row.get("incident_classification", "UNKNOWN")),
-            "state": str(row.get("state", "Gujarat")),
-            "region_code": str(row.get("region_code", "WEST_GUJARAT")),
+            "state": str(row.get("state") if row.get("state") and row.get("state") != "Gujarat" else calc_st),
+            "region_code": str(row.get("region_code") if row.get("region_code") and row.get("region_code") != "WEST_GUJARAT" else calc_reg),
             "weather_context": row.get("weather_context") or {},
             "exposure_context": row.get("exposure_context") or {},
             "facility_fingerprint": row.get("facility_fingerprint") or {},
@@ -279,13 +286,15 @@ def get_risk_prioritization(
             "rank": rank,
             "cluster_id": str(row["cluster_id"]),
             "incident_uuid": str(row.get("incident_uuid", row["cluster_id"])),
+            "stream_type": str(row.get("stream_type", "historical")),
+            "live_detections_count": int(row.get("live_detections_count", 0)),
             "status": str(row.get("status", "NEW")),
             "temporal_status": str(row.get("temporal_status", "HISTORICAL")),
-            "first_detected": str(row.get("first_detected", "")),
-            "last_detected": str(row.get("last_detected", "")),
-            "incident_age_hours": float(row.get("incident_age_hours", 0.0)),
-            "active_duration_hours": float(row.get("active_duration_hours", 0.0)),
-            "observation_freshness_minutes": float(row.get("observation_freshness_minutes", 0.0)),
+            "first_detected": str(row["first_detected"]) if pd.notna(row.get("first_detected")) and str(row.get("first_detected")).strip() not in ("", "nan", "None") else None,
+            "last_detected": str(row["last_detected"]) if pd.notna(row.get("last_detected")) and str(row.get("last_detected")).strip() not in ("", "nan", "None") else None,
+            "incident_age_hours": float(row.get("incident_age_hours", 0.0)) if pd.notna(row.get("incident_age_hours")) else None,
+            "active_duration_hours": float(row.get("active_duration_hours", 0.0)) if pd.notna(row.get("active_duration_hours")) else None,
+            "observation_freshness_minutes": float(row["observation_freshness_minutes"]) if pd.notna(row.get("observation_freshness_minutes")) and row.get("observation_freshness_minutes") is not None else None,
             "risk_score": round(float(row["risk_score"]), 2),
             "risk_level": str(row["risk_level"]),
             "action_code": str(row["action_code"]),

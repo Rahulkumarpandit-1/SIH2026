@@ -1,22 +1,17 @@
 import React from 'react';
-import { Layers, Globe, Map as MapIcon, Moon, Sun } from 'lucide-react';
+import { Globe, Map as MapIcon } from 'lucide-react';
 
-export const MapLayerControl = ({ activeLayer, onSelectLayer, isDark }) => {
+export const MapLayerControl = ({ activeLayer, onSelectLayer }) => {
   const options = [
     {
-      id: isDark ? 'dark' : 'light',
-      label: isDark ? 'Dark GIS' : 'Light Canvas',
-      icon: isDark ? Moon : Sun
+      id: 'satellite',
+      label: 'Satellite Imagery',
+      icon: Globe
     },
     {
       id: 'streets',
       label: 'Detailed Streets',
       icon: MapIcon
-    },
-    {
-      id: 'satellite',
-      label: 'Satellite Imagery',
-      icon: Globe
     }
   ];
 
@@ -38,7 +33,7 @@ export const MapLayerControl = ({ activeLayer, onSelectLayer, isDark }) => {
               title={`Switch to ${opt.label} basemap`}
             >
               <Icon size={12} />
-              <span>{opt.label}</span>
+              <span className="map-layer-pill-label">{opt.label}</span>
             </button>
           );
         })}

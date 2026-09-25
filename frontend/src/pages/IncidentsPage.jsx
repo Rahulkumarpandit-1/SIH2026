@@ -1,14 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, ShieldAlert, CheckCircle2, Radio, Info, Clock, Calendar, RefreshCw } from 'lucide-react';
-import { formatToIST, formatRelativeAge } from '../utils/dateUtils';
+import { Search, ArrowUpDown, ShieldAlert, CheckCircle2, Radio, Info, Clock, Calendar, RefreshCw, Database } from 'lucide-react';
+import { formatToIST, formatRelativeAge, deriveConsistentTemporalMetrics } from '../utils/dateUtils';
+import DataStatusBadge from '../components/DataStatusBadge';
+import { getDataStatus } from '../utils/dataProvenance';
+import { OperationalPriorityBadge, calculateOperationalPriority, compareOperationalPriority } from '../utils/priorityEngine';
 
 export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
   const [selectedRisk, setSelectedRisk] = useState('ALL');
+  const [selectedPriority, setSelectedPriority] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedTemporal, setSelectedTemporal] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedDataStatus, setSelectedDataStatus] = useState('OPERATIONAL'); // Default to OPERATIONAL (LIVE + RECENT)
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState('risk_score');
+  const [sortField, setSortField] = useState('operational_priority');
   const [sortAsc, setSortAsc] = useState(false);
 
   const safeRiskData = Array.isArray(riskData) ? riskData : [];
@@ -23,14 +28,20 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       // Risk level filter
       if (selectedRisk !== 'ALL' && item.risk_level !== selectedRisk) return false;
 
+      // Operational Priority filter (multi-signal synthesis)
+      if (selectedPriority !== 'ALL') {
+        const op = calculateOperationalPriority(item);
+        if (op.level !== selectedPriority) return false;
+      }
+
       // Classification filter
       if (selectedClass !== 'ALL' && item.incident_classification !== selectedClass) return false;
 
-      // Temporal status filter (supports RECENTLY_OBSERVED and ACTIVE alias)
+      // Temporal status filter (strictly derived from 4-tier model)
       if (selectedTemporal !== 'ALL') {
-        const itemTemporal = (item.temporal_status || 'HISTORICAL').toUpperCase();
-        if (selectedTemporal === 'RECENTLY_OBSERVED' || selectedTemporal === 'ACTIVE') {
-          if (itemTemporal !== 'RECENTLY_OBSERVED' && itemTemporal !== 'ACTIVE') return false;
+        const { status: itemTemporal } = getDataStatus(item);
+        if (selectedTemporal === 'LIVE' || selectedTemporal === 'RECENTLY_OBSERVED' || selectedTemporal === 'ACTIVE') {
+          if (itemTemporal !== 'LIVE') return false;
         } else if (itemTemporal !== selectedTemporal) {
           return false;
         }
@@ -40,6 +51,15 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       if (selectedStatus !== 'ALL') {
         const itemStatus = (item.status || 'NEW').toUpperCase();
         if (itemStatus !== selectedStatus) return false;
+      }
+
+      // Data Status filter (provenance 4-tier model)
+      if (selectedDataStatus === 'OPERATIONAL') {
+        const { status: ds } = getDataStatus(item);
+        if (ds !== 'LIVE' && ds !== 'RECENT') return false;
+      } else if (selectedDataStatus !== 'ALL') {
+        const { status: ds } = getDataStatus(item);
+        if (ds !== selectedDataStatus) return false;
       }
 
       // Search query filter
@@ -56,6 +76,11 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
     }).sort((a, b) => {
       let valA = a[sortField];
       let valB = b[sortField];
+
+      if (sortField === 'operational_priority') {
+        const cmp = compareOperationalPriority(a, b);
+        return sortAsc ? -cmp : cmp;
+      }
 
       // Handle nested telemetry or date sorting
       if (sortField === 'max_frp') {
@@ -86,7 +111,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       }
       return sortAsc ? valA - valB : valB - valA;
     });
-  }, [safeRiskData, selectedRisk, selectedClass, selectedTemporal, selectedStatus, searchQuery, sortField, sortAsc]);
+  }, [safeRiskData, selectedRisk, selectedPriority, selectedClass, selectedTemporal, selectedStatus, selectedDataStatus, searchQuery, sortField, sortAsc]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -134,11 +159,12 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
       <div className="alert-callout-neutral" style={{ marginBottom: '1.25rem' }}>
         <div className="callout-icon text-info"><Info size={20} /></div>
         <div style={{ fontSize: '0.84rem', lineHeight: 1.55 }}>
-          <strong>Observation-Derived Telemetry:</strong> Temporal status (
-          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>RECENTLY_OBSERVED (&le;6h)</span>,
-          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>RECENT (6-24h)</span>,
-          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>HISTORICAL (&gt;24h)</span>
-          ) is derived strictly from the latest orbital infrared satellite pass (NASA FIRMS) and does not represent real-time physical ground confirmation.
+          <strong>Observation-Derived Telemetry:</strong> Temporal classification (
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>LIVE (&le;24h)</span>,
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>RECENT (24h–7d)</span>,
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>HISTORICAL (&gt;7d)</span>,
+          <span className="pill-badge pill-neutral font-mono" style={{ margin: '0 0.25rem', fontSize: '0.72rem' }}>⚠ DEMO DATA</span>
+          ) is derived strictly from verified orbital infrared satellite overpasses (NASA FIRMS) and does not represent real-time continuous ground confirmation.
         </div>
       </div>
 
@@ -199,6 +225,67 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
           )}
         </div>
 
+        {/* Operational Incident Priority Filter Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+          <span className="text-muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <ShieldAlert size={12} /> Op Priority:
+          </span>
+          {[
+            { label: 'All Priorities', val: 'ALL' },
+            { label: 'CRITICAL', val: 'CRITICAL', color: '#D92D20' },
+            { label: 'HIGH', val: 'HIGH', color: '#F79009' },
+            { label: 'MEDIUM', val: 'MEDIUM', color: '#2E90FA' },
+            { label: 'LOW', val: 'LOW', color: '#667085' },
+          ].map((t) => (
+            <button
+              key={t.val}
+              onClick={() => setSelectedPriority(t.val)}
+              className={`filter-btn-text ${selectedPriority === t.val ? 'active' : ''}`}
+              style={{
+                padding: '0.25rem 0.6rem',
+                fontSize: '0.75rem',
+                color: selectedPriority === t.val ? t.color : undefined,
+                borderColor: selectedPriority === t.val && t.color ? t.color : undefined,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Data Status (Provenance 4-Tier) Filter Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+          <span className="text-muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <Database size={12} /> Recency Tier:
+          </span>
+          {[
+            { label: '⚡ OPERATIONAL (LIVE + RECENT)', val: 'OPERATIONAL', color: '#10B981' },
+            { label: '● LIVE (≤24h)', val: 'LIVE', color: '#10B981' },
+            { label: '● RECENT (24h-7d)', val: 'RECENT', color: '#3B82F6' },
+            { label: '● HISTORICAL (>7d)', val: 'HISTORICAL', color: '#6B7280' },
+            { label: '⚠ DEMO DATA', val: 'DEMO', color: '#F59E0B' },
+            { label: 'ALL RECORDS', val: 'ALL' },
+          ].map((t) => (
+            <button
+              key={t.val}
+              onClick={() => setSelectedDataStatus(t.val)}
+              className={`filter-btn-text ${selectedDataStatus === t.val ? 'active' : ''}`}
+              style={{
+                padding: '0.25rem 0.6rem',
+                fontSize: '0.75rem',
+                color: selectedDataStatus === t.val ? t.color : undefined,
+                borderColor: selectedDataStatus === t.val && t.color ? t.color : undefined,
+                fontWeight: selectedDataStatus === t.val ? 700 : 500,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+          <span className="text-muted" style={{ marginLeft: 'auto', fontSize: '0.76rem' }}>
+            Showing <strong>{filteredIncidents.length}</strong> of {safeRiskData.length} records
+          </span>
+        </div>
+
         {/* Temporal Intelligence Filter Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
           <span className="text-muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '0.72rem' }}>
@@ -206,9 +293,9 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
           </span>
           {[
             { label: 'All Windows', val: 'ALL' },
-            { label: 'Recently Observed (≤6h)', val: 'RECENTLY_OBSERVED' },
-            { label: 'Recent (6–24h)', val: 'RECENT' },
-            { label: 'Historical (>24h)', val: 'HISTORICAL' }
+            { label: 'LIVE (≤24h)', val: 'LIVE' },
+            { label: 'RECENT (24h–7d)', val: 'RECENT' },
+            { label: 'HISTORICAL (>7d)', val: 'HISTORICAL' }
           ].map((t) => (
             <button
               key={t.val}
@@ -219,9 +306,6 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
               {t.label}
             </button>
           ))}
-          <span className="text-muted" style={{ marginLeft: 'auto', fontSize: '0.76rem' }}>
-            Showing <strong>{filteredIncidents.length}</strong> of {safeRiskData.length} records
-          </span>
         </div>
       </div>
 
@@ -238,6 +322,10 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                 Risk Score
               </th>
               <th>Tier</th>
+              <th onClick={() => handleSort('operational_priority')} style={{ cursor: 'pointer' }}>
+                Op Priority {sortField === 'operational_priority' && (sortAsc ? '▲' : '▼')}
+              </th>
+              <th>Data Status</th>
               <th>Temporal Status</th>
               <th>Facility &amp; Regional Context</th>
               <th onClick={() => handleSort('first_detected')} style={{ cursor: 'pointer' }}>
@@ -247,7 +335,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                 Last Detected
               </th>
               <th onClick={() => handleSort('age')} style={{ cursor: 'pointer' }}>
-                Age
+                Observation Age
               </th>
               <th onClick={() => handleSort('detections')} style={{ cursor: 'pointer' }}>
                 Passes
@@ -262,7 +350,7 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
           <tbody>
             {filteredIncidents.length === 0 ? (
               <tr>
-                <td colSpan={13} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                <td colSpan={15} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                   No incidents matching the current search, temporal status, and investigation filter criteria.
                 </td>
               </tr>
@@ -273,7 +361,8 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                 const isMod = item.risk_level === 'MODERATE';
                 const maxFrp = item.telemetry?.max_frp ?? item.peak_frp ?? 0.0;
                 const detections = item.telemetry?.total_detections ?? item.detection_count ?? 1;
-                const tempStatus = item.temporal_status || 'HISTORICAL';
+                const temporal = deriveConsistentTemporalMetrics(item);
+                const tempStatus = temporal.temporal_status;
                 const isRecentObs = tempStatus === 'RECENTLY_OBSERVED' || tempStatus === 'ACTIVE';
                 const isRecent = tempStatus === 'RECENT';
                 const invStatus = item.status || 'NEW';
@@ -302,10 +391,16 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                       </span>
                     </td>
                     <td>
+                      <OperationalPriorityBadge incident={item} size="sm" />
+                    </td>
+                    <td className="data-status-col">
+                      <DataStatusBadge incident={item} size="sm" />
+                    </td>
+                    <td>
                       <span className={`status-indicator-tag ${
-                        isRecentObs ? 'critical' : isRecent ? 'warning' : 'neutral'
+                        tempStatus === 'LIVE' ? 'critical' : tempStatus === 'RECENT' ? 'info' : tempStatus === 'DEMO' ? 'warning' : 'neutral'
                       }`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
-                        {tempStatus.replace(/_/g, ' ')}
+                        {tempStatus === 'DEMO' ? '⚠ DEMO DATA' : tempStatus.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td>
@@ -318,13 +413,13 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
                       </span>
                     </td>
                     <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
-                      {formatToIST(item.first_detected)}
+                      {formatToIST(temporal.first_detected || item.first_detected)}
                     </td>
                     <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
-                      {formatToIST(item.last_detected)}
+                      {formatToIST(temporal.last_detected || item.last_detected)}
                     </td>
                     <td className="font-mono text-secondary" style={{ fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
-                      {formatRelativeAge(item.last_detected, '')}
+                      {temporal.formatted_freshness}
                     </td>
                     <td className="font-mono text-secondary" style={{ fontSize: '0.76rem' }}>
                       {detections}

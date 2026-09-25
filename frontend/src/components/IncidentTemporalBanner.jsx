@@ -11,17 +11,26 @@ import { classifyTemporalStatus, formatRelativeAge, formatToIST } from '../utils
  * - RECENT OBSERVATION (Amber): Last detection > 6h and <= 24h
  * - HISTORICAL INCIDENT (Grey): Last detection > 24h ("This incident is not a live event.")
  */
-export const IncidentTemporalBanner = ({ lastDetected, temporalStatus }) => {
-  // Determine temporal classification
-  const calculatedClass = classifyTemporalStatus(lastDetected);
-  // Match with backend temporal_status if provided
-  const effectiveClass = (temporalStatus === 'RECENTLY_OBSERVED' || temporalStatus === 'ACTIVE')
-    ? 'LIVE'
-    : (temporalStatus === 'RECENT')
-      ? 'RECENT'
-      : (temporalStatus === 'HISTORICAL')
-        ? 'HISTORICAL'
-        : calculatedClass;
+export const IncidentTemporalBanner = ({ lastDetected, temporalStatus, isDemo = false }) => {
+  // Derive mathematically consistent classification strictly from observation timestamp
+  let effectiveClass = 'HISTORICAL';
+  let diffHours = null;
+
+  if (isDemo) {
+    effectiveClass = 'DEMO';
+  } else if (lastDetected) {
+    const lastMs = new Date(lastDetected).getTime();
+    if (!isNaN(lastMs)) {
+      diffHours = (Date.now() - lastMs) / 3600000;
+      if (diffHours >= 0 && diffHours <= 24) {
+        effectiveClass = 'LIVE';
+      } else if (diffHours > 24 && diffHours <= 168) {
+        effectiveClass = 'RECENT';
+      } else {
+        effectiveClass = 'HISTORICAL';
+      }
+    }
+  }
 
   const istString = formatToIST(lastDetected);
   const relativeAge = formatRelativeAge(lastDetected, ''); // e.g. "45 minutes ago", "13 hours ago", "26 days ago"
@@ -29,40 +38,44 @@ export const IncidentTemporalBanner = ({ lastDetected, temporalStatus }) => {
   // Visual theming per status class
   const configs = {
     LIVE: {
-      title: 'LIVE OBSERVATION',
+      title: 'LIVE SATELLITE OBSERVATION',
       message: `Last satellite detection ${relativeAge}.`,
-      subtext: 'Orbital infrared sensors detected thermal anomalies within recent overpass window. Ground verification required.',
-      bg: 'rgba(18, 183, 106, 0.09)',
-      border: '1px solid rgba(18, 183, 106, 0.45)',
-      color: '#12B76A',
-      textColor: '#027A48',
-      icon: <Radio size={18} className="spin-anim-slow" style={{ color: '#12B76A' }} />,
-      pulseColor: '#12B76A',
-      showLiveWarning: false
+      subtext: 'Near-real-time orbital infrared pass detected within the last 24 hours. Decision support intelligence; ground verification recommended.',
+      bg: 'rgba(16, 185, 129, 0.09)',
+      border: '1px solid rgba(16, 185, 129, 0.45)',
+      color: '#10B981',
+      textColor: '#047857',
+      icon: <Radio size={18} className="spin-anim-slow" style={{ color: '#10B981' }} />,
     },
     RECENT: {
-      title: 'RECENT OBSERVATION',
+      title: 'RECENT SATELLITE OBSERVATION',
       message: `Last satellite detection ${relativeAge}.`,
-      subtext: 'Observed during orbital passes within the past 24 hours. Observation may not reflect current thermal state.',
-      bg: 'rgba(247, 144, 9, 0.09)',
-      border: '1px solid rgba(247, 144, 9, 0.45)',
-      color: '#F79009',
-      textColor: '#B54708',
-      icon: <Clock size={18} style={{ color: '#F79009' }} />,
-      pulseColor: '#F79009',
-      showLiveWarning: false
+      subtext: 'Operationally relevant detection observed between 24 hours and 7 days ago. Still operationally relevant for situational tracking.',
+      bg: 'rgba(59, 130, 246, 0.09)',
+      border: '1px solid rgba(59, 130, 246, 0.45)',
+      color: '#3B82F6',
+      textColor: '#1D4ED8',
+      icon: <Clock size={18} style={{ color: '#3B82F6' }} />,
     },
     HISTORICAL: {
-      title: 'HISTORICAL INCIDENT',
-      message: `Last satellite detection ${relativeAge}. This incident is not a live event.`,
-      subtext: 'Archived satellite observation record retained for longitudinal intelligence, baseline evaluation, and ML model training.',
-      bg: 'rgba(100, 116, 139, 0.08)',
-      border: '1px solid rgba(100, 116, 139, 0.35)',
-      color: '#64748B',
-      textColor: '#475569',
-      icon: <History size={18} style={{ color: '#64748B' }} />,
-      pulseColor: '#64748B',
-      showLiveWarning: true
+      title: 'HISTORICAL INCIDENT ARCHIVE',
+      message: `Last satellite detection ${relativeAge}. This incident is not an active fire event.`,
+      subtext: 'Archived satellite intelligence (>7 days old) retained for longitudinal analysis, seasonal baseline modeling, and ML training.',
+      bg: 'rgba(107, 114, 128, 0.08)',
+      border: '1px solid rgba(107, 114, 128, 0.35)',
+      color: '#6B7280',
+      textColor: '#374151',
+      icon: <History size={18} style={{ color: '#6B7280' }} />,
+    },
+    DEMO: {
+      title: '⚠ DEMO DATA &mdash; SEEDED RECORD',
+      message: 'Demonstration and synthetic scenario record.',
+      subtext: 'This record was seeded for platform evaluation and visualization. Not derived from live satellite ingestion.',
+      bg: 'rgba(245, 158, 11, 0.09)',
+      border: '1px dashed rgba(245, 158, 11, 0.55)',
+      color: '#F59E0B',
+      textColor: '#B45309',
+      icon: <AlertCircle size={18} style={{ color: '#F59E0B' }} />,
     }
   };
 

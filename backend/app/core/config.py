@@ -45,11 +45,11 @@ class Settings(BaseSettings):
     )
 
     # Default Region of Interest: [min_lon, min_lat, max_lon, max_lat]
-    # Complete Gujarat Industrial Corridor (Jamnagar, Dahej, Hazira/Surat, Vadodara, Vapi)
-    DEFAULT_BBOX_MIN_LON: float = 69.0
-    DEFAULT_BBOX_MIN_LAT: float = 20.0
-    DEFAULT_BBOX_MAX_LON: float = 74.0
-    DEFAULT_BBOX_MAX_LAT: float = 24.5
+    # Complete Whole India Geographic Coverage (All Industrial Belts & Corridors)
+    DEFAULT_BBOX_MIN_LON: float = 68.0
+    DEFAULT_BBOX_MIN_LAT: float = 8.0
+    DEFAULT_BBOX_MAX_LON: float = 97.5
+    DEFAULT_BBOX_MAX_LAT: float = 35.5
     
     # Storage settings - defaults to deterministic database path
     DATABASE_URL: str = Field(default_factory=_resolve_default_db_url)
@@ -72,6 +72,10 @@ class Settings(BaseSettings):
             self.DEFAULT_BBOX_MAX_LON,
             self.DEFAULT_BBOX_MAX_LAT
         ]
+
+    @property
+    def DEFAULT_BBOX(self) -> List[float]:
+        return self.default_bbox
 
 
 settings = Settings()

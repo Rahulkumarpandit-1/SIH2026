@@ -45,24 +45,25 @@ def test_parse_observation_timestamp():
 
 
 def test_temporal_status_classification_rules():
-    # <= 6 hours -> RECENTLY_OBSERVED
+    # <= 24 hours -> LIVE / RECENTLY_OBSERVED
     assert TemporalEngine.classify_temporal_status(0.0) == STATUS_RECENTLY_OBSERVED
-    assert TemporalEngine.classify_temporal_status(2.5) == STATUS_RECENTLY_OBSERVED
     assert TemporalEngine.classify_temporal_status(6.0) == STATUS_RECENTLY_OBSERVED
+    assert TemporalEngine.classify_temporal_status(24.0) == STATUS_RECENTLY_OBSERVED
 
-    # 6 to 24 hours -> RECENT
-    assert TemporalEngine.classify_temporal_status(6.1) == STATUS_RECENT
-    assert TemporalEngine.classify_temporal_status(18.0) == STATUS_RECENT
-    assert TemporalEngine.classify_temporal_status(24.0) == STATUS_RECENT
+    # > 24 to 168 hours (7 days) -> RECENT
+    assert TemporalEngine.classify_temporal_status(24.1) == STATUS_RECENT
+    assert TemporalEngine.classify_temporal_status(72.0) == STATUS_RECENT
+    assert TemporalEngine.classify_temporal_status(168.0) == STATUS_RECENT
 
-    # > 24 hours -> HISTORICAL
-    assert TemporalEngine.classify_temporal_status(24.1) == STATUS_HISTORICAL
-    assert TemporalEngine.classify_temporal_status(72.0) == STATUS_HISTORICAL
+    # > 168 hours (7 days) -> HISTORICAL
+    assert TemporalEngine.classify_temporal_status(168.1) == STATUS_HISTORICAL
+    assert TemporalEngine.classify_temporal_status(300.0) == STATUS_HISTORICAL
 
 
 def test_active_alias_mapping():
     assert TEMPORAL_STATUS_ALIASES["ACTIVE"] == STATUS_RECENTLY_OBSERVED
     assert TEMPORAL_STATUS_ALIASES["RECENTLY_OBSERVED"] == STATUS_RECENTLY_OBSERVED
+    assert TEMPORAL_STATUS_ALIASES["LIVE"] == STATUS_RECENTLY_OBSERVED
     assert TEMPORAL_STATUS_ALIASES["RECENT"] == STATUS_RECENT
     assert TEMPORAL_STATUS_ALIASES["HISTORICAL"] == STATUS_HISTORICAL
 
@@ -93,20 +94,27 @@ def test_evaluate_observations_calculations():
 def test_evaluate_observations_recent_and_historical():
     ref_time = datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc)
 
-    # 1. 10 hours ago -> RECENT
-    recent_obs = [{"acq_date": "2026-08-25", "acq_time": "0200", "frp": 15.0}]
+    # 1. 10 hours ago -> LIVE (<= 24h)
+    live_obs = [{"acq_date": "2026-08-25", "acq_time": "0200", "frp": 15.0}]
+    m_live = TemporalEngine.evaluate_observations(live_obs, reference_time=ref_time)
+    assert m_live["temporal_status"] == STATUS_RECENTLY_OBSERVED
+    assert m_live["is_recently_observed"] is True
+    assert m_live["incident_age_hours"] == 10.0
+    assert m_live["active_duration_hours"] == 0.0
+
+    # 2. 48 hours (2 days) ago -> RECENT (>24h and <= 168h)
+    recent_obs = [{"acq_date": "2026-08-23", "acq_time": "1200", "frp": 15.0}]
     m_recent = TemporalEngine.evaluate_observations(recent_obs, reference_time=ref_time)
     assert m_recent["temporal_status"] == STATUS_RECENT
     assert m_recent["is_recently_observed"] is False
-    assert m_recent["incident_age_hours"] == 10.0
-    assert m_recent["active_duration_hours"] == 0.0
+    assert m_recent["incident_age_hours"] == 48.0
 
-    # 2. 48 hours ago -> HISTORICAL
-    hist_obs = [{"acq_date": "2026-08-23", "acq_time": "1200", "frp": 15.0}]
+    # 3. 240 hours (10 days) ago -> HISTORICAL (> 168h)
+    hist_obs = [{"acq_date": "2026-08-15", "acq_time": "1200", "frp": 15.0}]
     m_hist = TemporalEngine.evaluate_observations(hist_obs, reference_time=ref_time)
     assert m_hist["temporal_status"] == STATUS_HISTORICAL
     assert m_hist["is_recently_observed"] is False
-    assert m_hist["incident_age_hours"] == 48.0
+    assert m_hist["incident_age_hours"] == 240.0
 
 
 def test_evaluate_empty_observations():
@@ -114,3 +122,6 @@ def test_evaluate_empty_observations():
     assert metrics["detection_count"] == 0
     assert metrics["temporal_status"] == STATUS_HISTORICAL
     assert metrics["is_recently_observed"] is False
+    assert metrics["first_detected"] is None
+    assert metrics["last_detected"] is None
+    assert metrics["observation_freshness_minutes"] is None

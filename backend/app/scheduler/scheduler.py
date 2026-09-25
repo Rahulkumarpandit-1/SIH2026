@@ -79,8 +79,8 @@ class BackgroundRefreshScheduler:
                         sensor=settings.DEFAULT_SENSOR,
                         stream_type="near_real_time"
                     )
-                    # PipelineService handles its own mutex locking
-                    result = PipelineService.refresh_firms_data(req, db)
+                    # Run synchronous pipeline refresh in thread pool to prevent blocking uvicorn event loop
+                    result = await asyncio.to_thread(PipelineService.refresh_firms_data, req, db)
                     logger.info(
                         f"Scheduled FIRMS check completed: status={result.status}, new={result.rows_added}, duplicates={result.rows_duplicate} ({result.execution_time_seconds}s)"
                     )

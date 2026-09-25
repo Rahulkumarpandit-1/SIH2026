@@ -68,10 +68,19 @@ class OSMClient:
             logger.info(f"Using cached OSM data for bbox {bbox} from: {cache_file}")
             return self.load_cached_geojson(cache_file)
 
+        # 1b. Check if any comprehensive OSM cache exists in cache_dir
+        if use_cache and os.path.exists(self.cache_dir):
+            for fname in os.listdir(self.cache_dir):
+                if fname.startswith("osm_") and fname.endswith(".geojson"):
+                    full_p = os.path.join(self.cache_dir, fname)
+                    if os.path.getsize(full_p) > 50000:
+                        logger.info(f"Using comprehensive cached OSM file from: {full_p}")
+                        return self.load_cached_geojson(full_p)
+
         # 2. Overpass QL Query
         # Note Overpass bbox syntax is: (south, west, north, east) -> (min_lat, min_lon, max_lat, max_lon)
         overpass_query = f"""
-        [out:json][timeout:25];
+        [out:json][timeout:10];
         (
           way["landuse"="industrial"]({min_lat},{min_lon},{max_lat},{max_lon});
           relation["landuse"="industrial"]({min_lat},{min_lon},{max_lat},{max_lon});
@@ -88,7 +97,7 @@ class OSMClient:
         
         for endpoint in self.OVERPASS_ENDPOINTS:
             try:
-                with httpx.Client(timeout=35.0) as client:
+                with httpx.Client(timeout=4.0) as client:
                     response = client.post(endpoint, data={"data": overpass_query})
                     if response.status_code == 200:
                         data = response.json()

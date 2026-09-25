@@ -20,6 +20,7 @@
   --bg-card-subtle: #F7F7F5;
   
   --text-main: #111111;
+  --text-primary: #111111;
   --text-secondary: #555555;
   --text-muted: #888888;
   --text-light: #B0B0B0;
@@ -28,6 +29,11 @@
   --border-divider: #E6E6E6;
   --border-subtle: #EFEFEF;
   --border-dark: #111111;
+  --border-color: #E6E6E6;
+
+  --primary: #175CD3;
+  --primary-glow: rgba(23, 92, 211, 0.08);
+  --primary-light: #2563EB;
 
   /* Semantic Operational Colors */
   --status-critical: #D92D20;
@@ -81,6 +87,7 @@
   --bg-card-subtle: #1A202A;
 
   --text-main: #F0F6FC;
+  --text-primary: #F0F6FC;
   --text-secondary: #9DA7B3;
   --text-muted: #6E7681;
   --text-light: #484F58;
@@ -89,6 +96,11 @@
   --border-divider: #30363D;
   --border-subtle: #21262D;
   --border-dark: #F0F6FC;
+  --border-color: #30363D;
+
+  --primary: #38BDF8;
+  --primary-glow: rgba(56, 189, 248, 0.15);
+  --primary-light: #60A5FA;
 
   /* Semantic Operational Colors (Vibrant, high legibility on dark surfaces) */
   --status-critical: #F85149;
@@ -280,7 +292,8 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   right: 0;
   z-index: 1000;
   background: var(--bg-nav);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-divider);
   transition: background-color 0.25s ease, border-color 0.25s ease;
 }
@@ -288,11 +301,11 @@ h4 { font-size: 1.05rem; font-weight: 600; }
 .nav-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0.85rem 2rem;
+  padding: 0.75rem 1.75rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .nav-brand-block {
@@ -300,6 +313,13 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   flex-direction: column;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
+}
+
+.nav-brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .nav-brand-title {
@@ -311,12 +331,25 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   line-height: 1.1;
 }
 
+.nav-mobile-scope-pill {
+  display: none;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--primary-glow);
+  color: var(--primary);
+  border: 1px solid var(--border-divider);
+  line-height: 1;
+}
+
 .nav-brand-sub {
   font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .nav-menu-links {
@@ -350,22 +383,75 @@ h4 { font-size: 1.05rem; font-weight: 600; }
 .nav-text-btn.active::after {
   content: '';
   position: absolute;
-  bottom: -0.85rem;
+  bottom: -0.75rem;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--text-main);
+  background: var(--primary);
+}
+
+.nav-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+/* Whole India Scope Badge (Desktop) */
+.nav-scope-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-divider);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.scope-flag {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.scope-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.scope-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--primary-glow);
+  color: var(--primary);
+  border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
 .nav-status-indicator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.72rem;
+  gap: 0.4rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-divider);
+}
+
+.status-label {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .live-dot {
@@ -383,11 +469,19 @@ h4 { font-size: 1.05rem; font-weight: 600; }
 
 .mobile-toggle-btn {
   display: none;
-  background: none;
-  border: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-divider);
+  border-radius: 6px;
   cursor: pointer;
   color: var(--text-main);
-  padding: 0.25rem;
+  padding: 0.35rem;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mobile-toggle-btn:hover {
+  background: var(--bg-hover);
 }
 
 .mobile-drawer {
@@ -395,25 +489,54 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   flex-direction: column;
   background: var(--bg-primary);
   border-top: 1px solid var(--border-divider);
-  padding: 0.75rem 2rem 1.25rem 2rem;
+  padding: 0.85rem 1.25rem 1.5rem 1.25rem;
   gap: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-drawer-scope-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-divider);
+  border-radius: 6px;
+}
+
+.drawer-scope-flag {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.drawer-scope-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.drawer-scope-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .mobile-drawer-link {
   background: none;
   border: none;
   text-align: left;
-  padding: 0.6rem 0;
-  font-size: 0.95rem;
+  padding: 0.65rem 0;
+  font-size: 0.92rem;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   border-bottom: 1px solid var(--border-subtle);
   font-family: inherit;
+  transition: color 0.15s ease;
 }
 
 .mobile-drawer-link.active {
-  color: var(--text-main);
+  color: var(--primary);
   font-weight: 700;
 }
 
@@ -1152,7 +1275,8 @@ h4 { font-size: 1.05rem; font-weight: 600; }
 
 .gis-map-viewport {
   width: 100%;
-  min-height: 620px;
+  min-height: 75vh;
+  height: 75vh;
   border: 1px solid var(--border-divider);
   border-radius: 4px;
   overflow: hidden;
@@ -1520,8 +1644,10 @@ h4 { font-size: 1.05rem; font-weight: 600; }
     grid-template-columns: 1fr;
   }
 
-  .gis-map-viewport {
-    min-height: 480px;
+  .gis-map-viewport,
+  .overview-map-container {
+    min-height: 60vh !important;
+    height: 60vh !important;
   }
 
   .two-column-layout,
@@ -1531,12 +1657,42 @@ h4 { font-size: 1.05rem; font-weight: 600; }
 }
 
 @media (max-width: 768px) {
+  .nav-container {
+    padding: 0.6rem 0.85rem;
+    gap: 0.5rem;
+  }
+
+  .nav-brand-title {
+    font-size: 0.92rem;
+  }
+
+  .nav-brand-sub {
+    display: none; /* Hide long subtitle on mobile to eliminate congestion */
+  }
+
+  .nav-mobile-scope-pill {
+    display: inline-block;
+  }
+
+  .nav-scope-badge {
+    display: none; /* Hidden on mobile top row to prevent congestion */
+  }
+
+  .nav-right-actions {
+    gap: 0.35rem;
+  }
+
   .nav-menu-links {
     display: none;
   }
 
   .mobile-toggle-btn {
-    display: block;
+    display: flex;
+  }
+
+  .nav-status-indicator {
+    padding: 3px 6px;
+    font-size: 0.65rem;
   }
 
   .page-container,
@@ -1545,21 +1701,120 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   .timeline-page,
   .gis-page,
   .incident-report-page {
-    padding: 1.5rem 1rem 4rem 1rem;
+    padding: 1rem 0.75rem 3rem 0.75rem;
+  }
+
+  .hero-editorial {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1rem 0 2rem 0;
   }
 
   .hero-main-title {
-    font-size: 2rem;
+    font-size: 1.65rem;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-main-desc {
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .critical-spotlight-box {
+    padding: 1.15rem;
+    gap: 1rem;
+  }
+
+  .critical-title {
+    font-size: 1.2rem;
+    line-height: 1.25;
+  }
+
+  .critical-header-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .critical-score-badge {
+    align-items: flex-start;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .critical-score-badge .score-number {
+    font-size: 1.75rem;
+  }
+
+  .evidence-grid-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+    padding: 0.85rem;
+  }
+
+  .evidence-value {
+    font-size: 0.92rem;
+  }
+
+  .evidence-sub {
+    font-size: 0.68rem;
+  }
+
+  .critical-footer-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .critical-footer-row .btn-outline {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .near-real-time-bar {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .clean-footer {
     flex-direction: column;
     align-items: flex-start;
+    padding: 1.5rem 1rem;
   }
 
   .bar-row-clean {
     grid-template-columns: 1fr;
     gap: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-container {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .nav-brand-title {
+    font-size: 0.85rem;
+  }
+
+  .nav-mobile-scope-pill {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+  }
+
+  .nav-status-indicator .status-label {
+    display: none; /* Show only pulsing live-dot on very small screens to avoid congestion */
+  }
+
+  .nav-status-indicator {
+    padding: 5px;
+    border-radius: 50%;
+  }
+
+  .evidence-grid-row {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1856,48 +2111,107 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   left: 14px;
   z-index: 1000;
   background: var(--bg-nav);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-divider);
   border-radius: 6px;
-  padding: 0.55rem 0.85rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  padding: 0.6rem 0.85rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   font-size: 0.72rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
   pointer-events: auto;
+  max-width: 440px;
+}
+
+.map-legend-float.minimized {
+  padding: 0.4rem 0.75rem;
+  gap: 0;
+}
+
+.map-legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--border-divider);
+  padding-bottom: 0.35rem;
+}
+
+.map-legend-float.minimized .map-legend-header {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .map-legend-title {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  color: var(--text-main);
+  font-size: 0.68rem;
+  margin: 0;
+}
+
+.map-legend-subtitle {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  font-size: 0.65rem;
-  margin-bottom: 0.1rem;
+  font-size: 0.62rem;
+  margin-top: 0.2rem;
+}
+
+.map-legend-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-action-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.legend-action-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+  border-color: var(--border-divider);
 }
 
 .map-legend-items {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .map-legend-item {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   color: var(--text-secondary);
   font-weight: 500;
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .legend-poly-box {
@@ -1907,6 +2221,907 @@ h4 { font-size: 1.05rem; font-weight: 600; }
   background: rgba(56, 189, 248, 0.2);
   display: inline-block;
   border-radius: 2px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  /* Hide Leaflet zoom controls on touch/mobile screens to prevent collision with controls */
+  .leaflet-top.leaflet-left {
+    display: none !important;
+  }
+
+  .map-layer-control-float {
+    top: 8px;
+    right: 8px;
+    left: auto;
+    z-index: 1000;
+  }
+
+  .map-layer-pills {
+    padding: 2px;
+    gap: 2px;
+    border-radius: 20px;
+  }
+
+  .map-layer-pill {
+    padding: 0.22rem 0.45rem;
+    font-size: 0.68rem;
+    gap: 0.25rem;
+  }
+
+  .map-layer-pill-label {
+    display: none;
+  }
+
+  .map-layer-pill.active .map-layer-pill-label {
+    display: inline;
+  }
+
+  .map-telemetry-toggle-pills {
+    top: 8px;
+    left: 8px;
+    padding: 2px 3px;
+    gap: 2px;
+    border-radius: 20px;
+    max-width: calc(100vw - 160px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .map-telemetry-toggle-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .map-telemetry-pill {
+    padding: 0.22rem 0.48rem;
+    font-size: 0.68rem;
+    gap: 0.25rem;
+  }
 }
 
 
+/* ==============================================================================
+   DATA PROVENANCE SYSTEM — Status Badges, Map Rings, Provenance Panel
+   SIH26162 Phase: Transparency & Scientific Clarity
+   ==============================================================================
+*/
+
+@keyframes live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); opacity: 1; }
+  70%  { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); opacity: 0.8; }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); opacity: 1; }
+}
+
+@keyframes ring-live-pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+
+.data-status-badge-wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.data-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  cursor: default;
+}
+
+.data-status-badge.dsb-sm  { font-size: 0.64rem; padding: 0.12rem 0.4rem; }
+.data-status-badge.dsb-md  { font-size: 0.74rem; padding: 0.2rem  0.55rem; }
+.data-status-badge.dsb-lg  { font-size: 0.82rem; padding: 0.28rem 0.7rem; }
+
+.dsb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dsb-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10B981;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+.dsb-icon { font-size: 0.85em; line-height: 1; }
+
+.dsb-freshness {
+  font-size: 0.78em;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-left: 0.1rem;
+  background: rgba(16, 185, 129, 0.2);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.data-status-badge.dsb-demo { border-style: dashed !important; }
+
+.dsb-source-line {
+  font-size: 0.67rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  padding-left: 0.1rem;
+}
+
+/* Full provenance panel */
+.dpanel-full {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-divider);
+  border-radius: 4px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dpanel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dpanel-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-secondary);
+}
+
+.dpanel-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 0.22rem 0.6rem;
+}
+
+.dpanel-demo-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1.5px dashed rgba(245, 158, 11, 0.5);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+}
+
+.dpanel-demo-icon { font-size: 1.15rem; color: #F59E0B; flex-shrink: 0; line-height: 1; margin-top: 0.1rem; }
+.dpanel-demo-heading { font-size: 0.82rem; font-weight: 800; color: #D97706; letter-spacing: 0.04em; font-family: var(--font-mono); margin-bottom: 0.3rem; }
+.dpanel-demo-sub { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; }
+
+.dpanel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem 1.25rem;
+}
+
+.dpanel-item { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.dpanel-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dpanel-val { font-size: 0.86rem; font-weight: 600; color: var(--text-main); }
+
+/* Incident queue table */
+.data-status-col { white-space: nowrap; }
+
+/* Overview priority card demo alert */
+.incident-demo-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px dashed rgba(245, 158, 11, 0.45);
+  border-radius: 4px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.76rem;
+  color: #D97706;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+@media (max-width: 768px) {
+  .dpanel-grid { grid-template-columns: 1fr; }
+  .dpanel-full { padding: 0.9rem; }
+}
+
+@keyframes live-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes live-ring-pulse {
+  0% {
+    stroke-opacity: 0.85;
+    stroke-width: 2;
+  }
+  50% {
+    stroke-opacity: 0.25;
+    stroke-width: 4;
+  }
+  100% {
+    stroke-opacity: 0.85;
+    stroke-width: 2;
+  }
+}
+
+.map-telemetry-toggle-pills {
+  position: absolute;
+  top: 14px;
+  left: 56px;
+  z-index: 1000;
+  display: flex;
+  gap: 0.35rem;
+  background: var(--bg-card);
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-divider);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.map-telemetry-pill {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.map-telemetry-pill:hover {
+  background: var(--bg-secondary);
+  color: var(--text-main);
+}
+
+.map-telemetry-pill.active {
+  background: var(--btn-primary-bg, #111827);
+  color: var(--btn-primary-text, #ffffff);
+}
+
+@media (max-width: 768px) {
+  .map-telemetry-toggle-pills {
+    left: 10px;
+    top: 56px;
+    flex-wrap: wrap;
+    max-width: calc(100vw - 20px);
+  }
+}
+
+/* ==========================================================================
+   OPERATIONAL INCIDENT PRIORITY BADGES (Phase 13.2)
+   Multi-Signal Synthesis: Risk (40%), Abnormality (25%), Exposure (20%), Freshness (15%)
+   ========================================================================== */
+
+.op-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.op-priority-sm {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.op-priority-md {
+  font-size: 0.78rem;
+  padding: 0.25rem 0.65rem;
+}
+
+.op-priority-lg {
+  font-size: 0.86rem;
+  padding: 0.35rem 0.85rem;
+}
+
+.op-priority-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.op-priority-sm .op-priority-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.op-priority-lg .op-priority-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.op-p-critical {
+  background: rgba(217, 45, 32, 0.12);
+  color: #D92D20;
+  border: 1px solid rgba(217, 45, 32, 0.45);
+}
+.op-p-critical .op-priority-dot {
+  background: #D92D20;
+  animation: pulse-ring 1.8s infinite;
+}
+
+.op-p-high {
+  background: rgba(247, 144, 9, 0.12);
+  color: #F79009;
+  border: 1px solid rgba(247, 144, 9, 0.45);
+}
+.op-p-high .op-priority-dot {
+  background: #F79009;
+}
+
+.op-p-medium {
+  background: rgba(46, 144, 250, 0.12);
+  color: #2E90FA;
+  border: 1px solid rgba(46, 144, 250, 0.45);
+}
+.op-p-medium .op-priority-dot {
+  background: #2E90FA;
+}
+
+.op-p-low {
+  background: rgba(100, 116, 139, 0.10);
+  color: #64748B;
+  border: 1px solid rgba(100, 116, 139, 0.30);
+}
+.op-p-low .op-priority-dot {
+  background: #64748B;
+}
+
+/* ==========================================================================
+   MOBILE GIS MAP DECLUTTERING & LEGEND TOGGLE
+   ========================================================================== */
+
+.map-legend-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: absolute;
+  bottom: 16px;
+  left: 14px;
+  z-index: 1000;
+  background: var(--bg-nav);
+  color: var(--text-main, #ffffff);
+  border: 1px solid var(--border-divider, #334155);
+  border-radius: 20px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.map-legend-toggle-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-focus, #38bdf8);
+  transform: translateY(-1px);
+}
+
+.map-legend-toggle-btn:active {
+  transform: scale(0.96);
+}
+
+.map-legend-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  pointer-events: auto;
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* ==========================================================================
+   OPERATIONAL GIS HALOS & PULSING RING ANIMATIONS
+   ========================================================================== */
+
+@keyframes pulseGisHaloCrit {
+  0% { stroke-opacity: 0.95; fill-opacity: 0.45; stroke-width: 2px; }
+  50% { stroke-opacity: 0.25; fill-opacity: 0.12; stroke-width: 6px; }
+  100% { stroke-opacity: 0.95; fill-opacity: 0.45; stroke-width: 2px; }
+}
+
+@keyframes pulseGisHaloHigh {
+  0% { stroke-opacity: 0.90; fill-opacity: 0.35; stroke-width: 1.8px; }
+  50% { stroke-opacity: 0.20; fill-opacity: 0.08; stroke-width: 5px; }
+  100% { stroke-opacity: 0.90; fill-opacity: 0.35; stroke-width: 1.8px; }
+}
+
+@keyframes pulseGisRingLive {
+  0% { stroke-opacity: 1; stroke-width: 2.5px; }
+  50% { stroke-opacity: 0.35; stroke-width: 5px; }
+  100% { stroke-opacity: 1; stroke-width: 2.5px; }
+}
+
+path.gis-pulse-halo-crit {
+  animation: pulseGisHaloCrit 1.8s infinite ease-in-out;
+}
+
+path.gis-pulse-halo-high {
+  animation: pulseGisHaloHigh 2.4s infinite ease-in-out;
+}
+
+path.gis-pulse-ring-live {
+  animation: pulseGisRingLive 1.6s infinite ease-in-out;
+}
+
+/* ==========================================================================
+   COLLAPSIBLE TELEMETRY DIAGNOSTICS PANEL (MAP DECLUTTERING)
+   ========================================================================== */
+
+.gis-diagnostics-panel {
+  margin-top: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-divider);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.gis-diagnostics-panel[open] {
+  border-color: var(--border-focus, #38bdf8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.gis-diagnostics-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background: var(--bg-secondary);
+  transition: background 0.15s ease;
+}
+
+.gis-diagnostics-summary:hover {
+  background: var(--bg-hover);
+}
+
+.gis-diagnostics-body {
+  padding: 1rem 1.15rem;
+  border-top: 1px solid var(--border-divider);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 1024px) {
+  .map-legend-float,
+  .map-legend-float.mobile-expanded {
+    position: absolute;
+    bottom: 12px;
+    left: 8px;
+    right: auto;
+    width: auto;
+    max-width: min(290px, calc(100vw - 20px));
+    z-index: 1002;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: var(--bg-card, #111827);
+    border: 1px solid var(--border-divider, #334155);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.68rem;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+    animation: fadeInSlideUp 0.18s ease-out;
+  }
+
+  .map-legend-toggle-btn {
+    bottom: 10px;
+    left: 8px;
+    padding: 0.32rem 0.65rem;
+    font-size: 0.68rem;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .map-legend-float,
+  .map-legend-float.mobile-expanded {
+    left: 8px;
+    right: 8px;
+    max-width: calc(100vw - 16px);
+    max-height: 36vh;
+  }
+}
+
+.legend-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.legend-close-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+/* Map Metadata Chips Row */
+.map-telemetry-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-top: 0.65rem;
+}
+
+.map-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-divider, #e2e8f0);
+  border-radius: 4px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   MOBILE SITUATION TELEMETRY & DIAGNOSTICS ACCORDION
+   ========================================================================== */
+
+.mobile-operational-cards {
+  display: none;
+}
+
+.desktop-only-strip {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .mobile-operational-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+    margin: 0.75rem 0 1rem 0;
+  }
+
+  .desktop-only-strip {
+    display: none !important;
+  }
+
+  .mobile-op-card {
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-divider, #e2e8f0);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .mobile-op-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .mobile-op-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.diagnostics-accordion {
+  margin-top: 1rem;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-divider, #e2e8f0);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.diagnostics-accordion[open] {
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.diagnostics-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  user-select: none;
+  list-style: none;
+}
+
+.diagnostics-summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-divider, #e2e8f0);
+}
+
+.diag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.diag-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.diag-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* ==========================================================================
+   INCIDENT WORKFLOW MAP QUICK FILTERS & CLEAN POPUP (RECESIGN)
+   ========================================================================== */
+
+.map-workflow-quick-filters {
+  position: absolute;
+  top: 14px;
+  left: 54px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-nav, #0f172a);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-divider, #334155);
+  border-radius: 24px;
+  padding: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+@media (max-width: 992px) {
+  .map-workflow-quick-filters {
+    left: 10px;
+    top: 10px;
+    max-width: calc(100% - 150px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .map-workflow-quick-filters::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.map-wf-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  outline: none;
+}
+
+.map-wf-pill:hover {
+  color: var(--text-main, #ffffff);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+.map-wf-pill.active-operational {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.5);
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+.map-wf-pill.active-live {
+  background: rgba(16, 185, 129, 0.22);
+  color: #10b981;
+  border-color: #10b981;
+  font-weight: 700;
+}
+
+.map-wf-pill.active-recent {
+  background: rgba(59, 130, 246, 0.22);
+  color: #3b82f6;
+  border-color: #3b82f6;
+  font-weight: 700;
+}
+
+.map-wf-pill.active-historical {
+  background: rgba(107, 114, 128, 0.2);
+  color: #9ca3af;
+  border-color: #6b7280;
+  font-weight: 700;
+}
+
+.map-wf-pill.active-demo {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border-color: #f59e0b;
+  font-weight: 700;
+}
+
+.map-wf-pill.active-all {
+  background: var(--btn-primary-bg, #ffffff);
+  color: var(--btn-primary-text, #0f172a);
+  border-color: var(--btn-primary-border, #ffffff);
+  font-weight: 700;
+}
+
+/* Redesigned Streamlined GIS Popup */
+.gis-clean-popup {
+  padding: 3px;
+  min-width: 220px;
+  max-width: 270px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.gis-popup-demo-banner {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px dashed #f59e0b;
+  border-radius: 4px;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #d97706;
+  margin-bottom: 0.35rem;
+  text-align: center;
+}
+
+.gis-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.gis-popup-facility-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 175px;
+}
+
+.gis-popup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-top: 1px solid var(--border-divider, #e2e8f0);
+  border-bottom: 1px solid var(--border-divider, #e2e8f0);
+  padding: 0.35rem 0;
+  margin-bottom: 0.45rem;
+}
+
+.gis-popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.73rem;
+}
+
+.gis-popup-k {
+  color: var(--text-muted, #64748b);
+  font-size: 0.7rem;
+}
+
+.gis-popup-v {
+  color: var(--text-main, #0f172a);
+  text-align: right;
+}
+
+.gis-popup-cta {
+  width: 100%;
+  justify-content: center;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 4px;
+}

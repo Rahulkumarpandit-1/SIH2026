@@ -25,17 +25,21 @@ from typing import Dict, Any, List, Optional, Union
 import pandas as pd
 
 
-# Observation-based Temporal Classifications
-STATUS_RECENTLY_OBSERVED = "RECENTLY_OBSERVED"  # Last Detection <= 6 Hours
-STATUS_RECENT = "RECENT"                        # 6 Hours < Last Detection <= 24 Hours
-STATUS_HISTORICAL = "HISTORICAL"                # Last Detection > 24 Hours
+# Observation-based Temporal Classifications (Strict 4-Tier Model: Phase 2)
+STATUS_LIVE = "LIVE"
+STATUS_RECENTLY_OBSERVED = "LIVE"  # Backward compatibility alias
+STATUS_RECENT = "RECENT"
+STATUS_HISTORICAL = "HISTORICAL"
+STATUS_DEMO = "DEMO"
 
 # Alias mapping for backward compatibility
 TEMPORAL_STATUS_ALIASES = {
-    "ACTIVE": STATUS_RECENTLY_OBSERVED,
-    "RECENTLY_OBSERVED": STATUS_RECENTLY_OBSERVED,
+    "ACTIVE": STATUS_LIVE,
+    "RECENTLY_OBSERVED": STATUS_LIVE,
+    "LIVE": STATUS_LIVE,
     "RECENT": STATUS_RECENT,
-    "HISTORICAL": STATUS_HISTORICAL
+    "HISTORICAL": STATUS_HISTORICAL,
+    "DEMO": STATUS_DEMO
 }
 
 
@@ -79,7 +83,7 @@ class TemporalEngine:
     """
 
     SCIENTIFIC_DISCLOSURE = (
-        "Observation-Derived Status: Incident status ('RECENTLY_OBSERVED', 'RECENT', 'HISTORICAL') "
+        "Observation-Derived Status: Incident status ('LIVE', 'RECENT', 'HISTORICAL') "
         "is derived strictly from the latest orbital infrared satellite pass (NASA FIRMS) and does "
         "not represent real-time physical ground confirmation. Satellite overpass cycles occur periodically."
     )
@@ -88,13 +92,13 @@ class TemporalEngine:
     def classify_temporal_status(cls, hours_since_last: float) -> str:
         """
         Classifies temporal status strictly by hours since last satellite detection:
-        - RECENTLY_OBSERVED: <= 6 Hours
-        - RECENT: > 6 Hours and <= 24 Hours
-        - HISTORICAL: > 24 Hours
+        - LIVE: <= 24 Hours
+        - RECENT: > 24 Hours and <= 7 Days (168 Hours)
+        - HISTORICAL: > 7 Days (> 168 Hours)
         """
-        if hours_since_last <= 6.0:
-            return STATUS_RECENTLY_OBSERVED
-        elif hours_since_last <= 24.0:
+        if hours_since_last <= 24.0:
+            return STATUS_LIVE
+        elif hours_since_last <= 168.0:
             return STATUS_RECENT
         else:
             return STATUS_HISTORICAL
@@ -115,18 +119,17 @@ class TemporalEngine:
         """
         if not observations:
             ref = reference_time or datetime.now(timezone.utc)
-            ref_iso = ref.isoformat()
             return {
-                "first_detected": ref_iso,
-                "last_detected": ref_iso,
+                "first_detected": None,
+                "last_detected": None,
                 "incident_age_hours": 0.0,
                 "active_duration_hours": 0.0,
                 "detection_count": 0,
-                "observation_freshness_minutes": 0.0,
+                "observation_freshness_minutes": None,
                 "temporal_status": STATUS_HISTORICAL,
                 "is_recently_observed": False,
                 "scientific_disclosure": cls.SCIENTIFIC_DISCLOSURE,
-                "reference_time": ref_iso
+                "reference_time": ref.isoformat()
             }
 
         # Parse all observation timestamps
@@ -168,7 +171,7 @@ class TemporalEngine:
             "detection_count": len(parsed_timestamps),
             "observation_freshness_minutes": freshness_minutes,
             "temporal_status": status,
-            "is_recently_observed": (status == STATUS_RECENTLY_OBSERVED),
+            "is_recently_observed": (status == STATUS_LIVE),
             "scientific_disclosure": cls.SCIENTIFIC_DISCLOSURE,
             "reference_time": ref_dt.isoformat()
         }

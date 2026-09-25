@@ -1,30 +1,22 @@
 import React from 'react';
 import { Clock, Calendar, AlertCircle, RefreshCw, Satellite, History, Layers } from 'lucide-react';
-import { formatToIST, formatRelativeAge, formatTimestampWithRelative } from '../utils/dateUtils';
+import { formatToIST, formatRelativeAge, formatTimestampWithRelative, deriveConsistentTemporalMetrics } from '../utils/dateUtils';
 
 export const IncidentTemporalPanel = ({ temporalData, incidentUuid, currentStatus }) => {
   if (!temporalData) return null;
 
-  const {
-    first_detected,
-    last_detected,
-    incident_age_hours = 0,
-    active_duration_hours = 0,
-    detection_count = 1,
-    observation_freshness_minutes = 0,
-    temporal_status = 'HISTORICAL',
-    is_recently_observed = false,
-    scientific_disclosure = ''
-  } = temporalData;
+  // Mathematically derive 100% consistent temporal metrics from actual observation timestamps
+  const consistent = deriveConsistentTemporalMetrics(temporalData);
 
-  const formatFreshness = (mins) => {
-    if (mins === null || mins === undefined) return 'N/A';
-    if (mins < 60) return `Observed ${mins.toFixed(0)} minutes ago`;
-    const hours = mins / 60;
-    if (hours < 24) return `Observed ${hours.toFixed(1)} hours ago`;
-    const days = hours / 24;
-    return `Observed ${days.toFixed(1)} days ago`;
-  };
+  const first_detected = consistent.first_detected || temporalData.first_detected;
+  const last_detected = consistent.last_detected || temporalData.last_detected;
+  const incident_age_hours = consistent.incident_age_hours;
+  const active_duration_hours = consistent.active_duration_hours;
+  const detection_count = temporalData.detection_count ?? 1;
+  const observation_freshness_minutes = consistent.freshness_minutes;
+  const formatted_freshness = consistent.formatted_freshness;
+  const temporal_status = consistent.temporal_status;
+  const scientific_disclosure = temporalData.scientific_disclosure || '';
 
   const isRecentObs = temporal_status === 'RECENTLY_OBSERVED';
   const isRecent = temporal_status === 'RECENT';
@@ -75,7 +67,7 @@ export const IncidentTemporalPanel = ({ temporalData, incidentUuid, currentStatu
           <RefreshCw size={18} className={isRecentObs ? 'text-critical' : 'text-secondary'} />
           <div>
             <div style={{ fontSize: '0.84rem', fontWeight: 600 }}>
-              Satellite Observation Freshness: <span className="font-mono">{formatFreshness(observation_freshness_minutes)}</span>
+              Satellite Observation Freshness: <span className="font-mono">{formatted_freshness}</span>
             </div>
             <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
               Latest sensor overpass: <strong>{formatTimestampWithRelative(last_detected, 'Observed')}</strong>

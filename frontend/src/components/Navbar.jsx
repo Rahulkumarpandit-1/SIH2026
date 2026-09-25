@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Menu, X, RefreshCw } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
-import RegionSelector from './RegionSelector';
 
 export const Navbar = ({ 
   currentView, 
@@ -33,11 +32,14 @@ export const Navbar = ({
       <div className="nav-container">
         {/* Brand Left */}
         <div className="nav-brand-block" onClick={() => handleNavClick('overview')}>
-          <span className="nav-brand-title">SIH26162</span>
-          <span className="nav-brand-sub">Near-Real-Time Thermal Monitoring</span>
+          <div className="nav-brand-title-row">
+            <span className="nav-brand-title">SIH26162</span>
+            <span className="nav-mobile-scope-pill">🇮🇳 India</span>
+          </div>
+          <span className="nav-brand-sub">Thermal Fire Intelligence</span>
         </div>
 
-        {/* Text Navigation Links */}
+        {/* Text Navigation Links (Desktop) */}
         <div className="nav-menu-links">
           {navItems.map((item) => (
             <button
@@ -50,21 +52,27 @@ export const Navbar = ({
           ))}
         </div>
 
-        {/* Right Section: Region Selector, Theme Toggle & Status Indicator */}
-        <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <RegionSelector />
+        {/* Right Section: Whole India Badge, Theme Toggle & Status Indicator */}
+        <div className="nav-right-actions">
+          {/* Desktop Whole India Badge */}
+          <div className="nav-scope-badge" title="National Scope: Ingesting verified satellite telemetry across Whole India">
+            <span className="scope-flag">🇮🇳</span>
+            <span className="scope-text">Whole India</span>
+            <span className="scope-tag">National</span>
+          </div>
+
           <ThemeToggle />
 
-          <div className="nav-status-indicator">
+          <div className="nav-status-indicator" title={isOnline ? "NASA Telemetry Pipeline Online & Connected (Platform Feed Active)" : "Pipeline Feed Offline"}>
             {isRefreshing ? (
               <>
                 <RefreshCw size={12} className="spin-anim text-warning" />
-                <span className="text-warning">INGESTING FIRMS...</span>
+                <span className="status-label text-warning">INGESTING...</span>
               </>
             ) : (
               <>
                 <div className={`live-dot ${isOnline ? '' : 'offline'}`} />
-                <span>{isOnline ? 'SYSTEM LIVE' : 'API OFFLINE'}</span>
+                <span className="status-label">{isOnline ? 'SYSTEM ONLINE' : 'FEED OFFLINE'}</span>
               </>
             )}
           </div>
@@ -75,7 +83,7 @@ export const Navbar = ({
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation"
           >
-            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
@@ -83,6 +91,15 @@ export const Navbar = ({
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="mobile-drawer">
+          {/* Mobile Scope Card */}
+          <div className="mobile-drawer-scope-card">
+            <div className="drawer-scope-flag">🇮🇳</div>
+            <div>
+              <div className="drawer-scope-title">Whole India Coverage</div>
+              <div className="drawer-scope-sub">National Industrial Thermal Monitoring Grid</div>
+            </div>
+          </div>
+
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -92,11 +109,6 @@ export const Navbar = ({
               {item.label}
             </button>
           ))}
-
-          {/* Mobile Region Selector Row */}
-          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-subtle)' }}>
-            <RegionSelector />
-          </div>
 
           {/* Mobile Theme Toggle Row */}
           <ThemeToggle variant="drawer" />

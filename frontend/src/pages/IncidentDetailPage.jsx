@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Wind, CloudRain, Compass, Users, Building2, Trees, Activity, TrendingUp, Zap, History, FileCheck2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Radio, Clock, Gauge, ShieldAlert, AlertTriangle, CheckCircle2, HelpCircle, Wind, CloudRain, Compass, Users, Building2, Trees, Activity, TrendingUp, Zap, History, FileCheck2, Database } from 'lucide-react';
 import { MapContainer, TileLayer, CircleMarker, GeoJSON } from 'react-leaflet';
 import { useTheme } from '../context/ThemeContext';
 import { MAP_PROVIDERS } from '../services/mapConfig';
@@ -16,19 +16,18 @@ import RiskAttributionCard from '../components/RiskAttributionCard';
 import AbnormalityBreakdownCard from '../components/AbnormalityBreakdownCard';
 import SimilarIncidentsCard from '../components/SimilarIncidentsCard';
 import { ReviewAuditTimeline } from '../components/ReviewAuditTimeline';
-import { formatToIST, formatRelativeAge, formatTimestampWithRelative } from '../utils/dateUtils';
+import DataStatusBadge from '../components/DataStatusBadge';
+import DataProvenancePanel from '../components/DataProvenancePanel';
+import { OperationalPriorityBadge } from '../utils/priorityEngine';
+import { formatToIST, formatRelativeAge, formatTimestampWithRelative, deriveConsistentTemporalMetrics } from '../utils/dateUtils';
 
 export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => {
   const { isDark } = useTheme();
-  const [layerType, setLayerType] = useState(() => (isDark ? 'dark' : 'streets'));
+  const [layerType, setLayerType] = useState('satellite');
   const [incidentAuditLogs, setIncidentAuditLogs] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
-  useEffect(() => {
-    setLayerType(isDark ? 'dark' : 'streets');
-  }, [isDark]);
-
-  const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.streets;
+  const activeProvider = MAP_PROVIDERS[layerType] || MAP_PROVIDERS.satellite || MAP_PROVIDERS.streets;
   if (!incident) return null;
 
   const {
@@ -111,16 +110,26 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
 
   const incidentUuid = incident.incident_uuid || cluster_id;
   const currentStatus = incident.status || 'NEW';
-  const temporalData = incident.temporal_intelligence || {
-    first_detected: incident.first_detected || new Date().toISOString(),
-    last_detected: incident.last_detected || new Date().toISOString(),
-    incident_age_hours: incident.incident_age_hours ?? 0,
-    active_duration_hours: incident.active_duration_hours ?? 0,
+
+  // Mathematically derive 100% consistent temporal data
+  const rawTemporal = incident.temporal_intelligence || incident;
+  const consistentTemporal = deriveConsistentTemporalMetrics({
+    ...rawTemporal,
+    first_detected: incident.first_detected || rawTemporal.first_detected,
+    last_detected: incident.last_detected || rawTemporal.last_detected,
+    observation_freshness_minutes: incident.observation_freshness_minutes ?? rawTemporal.observation_freshness_minutes
+  });
+
+  const temporalData = {
+    first_detected: consistentTemporal.first_detected,
+    last_detected: consistentTemporal.last_detected,
+    incident_age_hours: consistentTemporal.incident_age_hours,
+    active_duration_hours: consistentTemporal.active_duration_hours,
     detection_count: telemetry.total_detections ?? incident.detection_count ?? 1,
-    observation_freshness_minutes: incident.observation_freshness_minutes ?? 0,
-    temporal_status: incident.temporal_status || 'HISTORICAL',
-    is_recently_observed: incident.temporal_status === 'RECENTLY_OBSERVED',
-    scientific_disclosure: 'Incident status is derived strictly from the latest available satellite infrared overpass (NASA FIRMS) and does not represent real-time physical ground truth.'
+    observation_freshness_minutes: consistentTemporal.freshness_minutes,
+    temporal_status: consistentTemporal.temporal_status,
+    is_recently_observed: consistentTemporal.temporal_status === 'RECENTLY_OBSERVED',
+    scientific_disclosure: rawTemporal.scientific_disclosure || 'Incident status is derived strictly from the latest available satellite infrared overpass (NASA FIRMS) and does not represent real-time physical ground truth.'
   };
 
   useEffect(() => {
@@ -158,6 +167,7 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
       <IncidentTemporalBanner
         lastDetected={temporalData.last_detected}
         temporalStatus={temporalData.temporal_status}
+        isDemo={incident._isDemo || consistentTemporal.status === 'DEMO'}
       />
 
       {/* Incident Header Block */}
@@ -177,6 +187,10 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           <span className={`status-indicator-tag ${isCrit ? 'critical' : risk_level.toLowerCase()}`}>
             {risk_level}
           </span>
+          {/* Operational Priority Badge (Multi-signal synthesis) */}
+          <OperationalPriorityBadge incident={incident} size="md" showTooltip={true} />
+          {/* Data Provenance Status Badge */}
+          <DataStatusBadge incident={incident} size="lg" showSource={true} />
           <span className="text-muted">&bull;</span>
           <span className="font-bold">{nearest_facility_name}</span>
           <span className="text-muted">&bull;</span>
@@ -205,6 +219,65 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           Centroid Coordinates: {centroid_latitude?.toFixed(4)}°N, {centroid_longitude?.toFixed(4)}°E &bull; Context: {spatial_context}
         </div>
       </div>
+
+      {/* 5-Field Operational Intelligence & Provenance Card */}
+      <section className="spacious-section" style={{ padding: '0 0 1rem 0' }}>
+        <div className="section-tag">OPERATIONAL DECISION SUPPORT &bull; DATA PROVENANCE</div>
+        
+        {consistentTemporal.status === 'DEMO' && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.12)', border: '1px dashed #F59E0B', borderRadius: '6px', padding: '0.75rem 1rem', margin: '0.65rem 0', color: '#B45309', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ fontSize: '1.2rem', fontWeight: 800 }}>⚠</span>
+            <div>
+              <strong>DEMO DATA &mdash; Seeded Demonstration Record</strong>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                This record originates from seeded fallback demonstration data. It is not an active real satellite observation.
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="report-data-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', margin: '0.75rem 0' }}>
+          <div className="report-data-item">
+            <span className="report-data-label">Data Status</span>
+            <span className="report-data-val" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <DataStatusBadge incident={incident} size="md" />
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Recency Classification</span>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Last Detection</span>
+            <span className="report-data-val font-mono" style={{ fontSize: '0.82rem' }}>
+              {temporalData.last_detected ? formatToIST(temporalData.last_detected) : 'Unknown'}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Exact satellite overpass</span>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Observation Age</span>
+            <span className="report-data-val font-mono">
+              {consistentTemporal.formatted_freshness || formatRelativeAge(temporalData.last_detected, '')}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Elapsed time since overpass</span>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Data Source</span>
+            <span className="report-data-val font-mono" style={{ fontSize: '0.8rem' }}>
+              {consistentTemporal.status === 'DEMO' ? 'Seeded Demonstration Dataset' : (consistentTemporal.source || 'NASA FIRMS VIIRS (NRT)')}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Sensor data provenance</span>
+          </div>
+
+          <div className="report-data-item">
+            <span className="report-data-label">Operational Priority</span>
+            <span className="report-data-val">
+              <OperationalPriorityBadge incident={incident} size="md" />
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Multi-signal operational tier</span>
+          </div>
+        </div>
+      </section>
 
       {/* VERIFICATION & EVIDENCE STATE BREAKDOWN */}
       <section className="spacious-section" style={{ padding: '0 0 1rem 0' }}>
@@ -280,7 +353,6 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           <MapLayerControl
             activeLayer={layerType}
             onSelectLayer={setLayerType}
-            isDark={isDark}
           />
 
           <MapContainer
@@ -391,6 +463,17 @@ export const IncidentDetailPage = ({ incident, industrialPolygons, onBack }) => 
           </span>
         </div>
       </section>
+
+      {/* SECTION 01B: DATA PROVENANCE */}
+      <section className="report-section">
+        <span className="report-section-heading">
+          <Database size={13} style={{ display: 'inline', marginRight: '0.4rem', verticalAlign: 'middle' }} />
+          01B &bull; Data Source &amp; Observation Provenance
+        </span>
+        <DataProvenancePanel incident={incident} compact={false} />
+      </section>
+
+      <div className="divider-sm" />
 
       {/* SECTION B: THERMAL EVIDENCE */}
       <section className="report-section">
