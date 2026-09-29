@@ -309,133 +309,144 @@ export const IncidentsPage = ({ riskData = [], onOpenIncidentDetail }) => {
         </div>
       </div>
 
-      {/* Clean Incident Table with Enhanced Temporal Columns */}
+      {/* Dense Operational Table */}
       <div className="table-responsive">
-        <table className="clean-table" style={{ fontSize: '0.8rem' }}>
+        <table className="clean-table" style={{ fontSize: '0.78rem' }}>
           <thead>
             <tr>
-              <th onClick={() => handleSort('rank')} style={{ cursor: 'pointer' }}>
-                Rank
-              </th>
-              <th>Cluster / UUID</th>
-              <th onClick={() => handleSort('risk_score')} style={{ cursor: 'pointer' }}>
-                Risk Score
-              </th>
-              <th>Tier</th>
               <th onClick={() => handleSort('operational_priority')} style={{ cursor: 'pointer' }}>
-                Op Priority {sortField === 'operational_priority' && (sortAsc ? '▲' : '▼')}
+                Priority {sortField === 'operational_priority' && (sortAsc ? '▲' : '▼')}
               </th>
-              <th>Data Status</th>
-              <th>Temporal Status</th>
-              <th>Facility &amp; Regional Context</th>
-              <th onClick={() => handleSort('first_detected')} style={{ cursor: 'pointer' }}>
-                First Detected
+              <th>Incident ID</th>
+              <th>Status</th>
+              <th onClick={() => handleSort('risk_score')} style={{ cursor: 'pointer' }}>
+                Risk {sortField === 'risk_score' && (sortAsc ? '▲' : '▼')}
               </th>
-              <th onClick={() => handleSort('last_detected')} style={{ cursor: 'pointer' }}>
-                Last Detected
+              <th>Location</th>
+              <th>Facility</th>
+              <th onClick={() => handleSort('max_frp')} style={{ cursor: 'pointer' }}>
+                Peak FRP {sortField === 'max_frp' && (sortAsc ? '▲' : '▼')}
               </th>
               <th onClick={() => handleSort('age')} style={{ cursor: 'pointer' }}>
-                Observation Age
+                Observation Age {sortField === 'age' && (sortAsc ? '▲' : '▼')}
               </th>
-              <th onClick={() => handleSort('detections')} style={{ cursor: 'pointer' }}>
-                Passes
+              <th>Exposure</th>
+              <th>Verification</th>
+              <th onClick={() => handleSort('last_detected')} style={{ cursor: 'pointer' }}>
+                Updated {sortField === 'last_detected' && (sortAsc ? '▲' : '▼')}
               </th>
-              <th onClick={() => handleSort('max_frp')} style={{ cursor: 'pointer' }}>
-                Peak FRP
-              </th>
-              <th>Action Directive</th>
-              <th>Investigation</th>
             </tr>
           </thead>
           <tbody>
             {filteredIncidents.length === 0 ? (
               <tr>
-                <td colSpan={15} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                  No incidents matching the current search, temporal status, and investigation filter criteria.
+                <td colSpan={11} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                  No incidents matching the current search, temporal status, and priority filter criteria.
                 </td>
               </tr>
             ) : (
               filteredIncidents.map((item) => {
-                const isCrit = item.risk_level === 'CRITICAL';
-                const isHigh = item.risk_level === 'HIGH';
-                const isMod = item.risk_level === 'MODERATE';
                 const maxFrp = item.telemetry?.max_frp ?? item.peak_frp ?? 0.0;
-                const detections = item.telemetry?.total_detections ?? item.detection_count ?? 1;
                 const temporal = deriveConsistentTemporalMetrics(item);
-                const tempStatus = temporal.temporal_status;
-                const isRecentObs = tempStatus === 'RECENTLY_OBSERVED' || tempStatus === 'ACTIVE';
-                const isRecent = tempStatus === 'RECENT';
-                const invStatus = item.status || 'NEW';
+                const distMeters = item.telemetry?.distance_to_industry_meters ?? item.distance_to_industry_meters ?? 0;
+                const isFacilityAssociated = distMeters <= 1000;
+                const exposureStatus = item.exposure_context?.downwind_exposure || item.exposure_context?.population_exposure || 'LOW';
+                const verificationLabel = item.assigned_label || (item.status === 'VERIFIED_FIRE' ? 'VERIFIED' : item.status === 'FALSE_ALARM' ? 'REJECTED' : 'UNLABELED');
 
                 return (
-                  <tr key={item.incident_uuid || item.cluster_id} onClick={() => onOpenIncidentDetail(item)}>
-                    <td className="font-mono text-muted">#{item.rank}</td>
+                  <tr 
+                    key={item.incident_uuid || item.cluster_id} 
+                    onClick={() => onOpenIncidentDetail(item)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {/* 1. Priority */}
                     <td>
-                      <div className="font-mono font-bold" style={{ fontSize: '0.82rem' }}>
+                      <OperationalPriorityBadge incident={item} size="sm" showLabel={true} />
+                    </td>
+
+                    {/* 2. Incident ID */}
+                    <td>
+                      <div className="font-mono font-bold" style={{ fontSize: '0.8rem' }}>
                         {item.cluster_id}
                       </div>
                       {item.incident_uuid && item.incident_uuid !== item.cluster_id && (
-                        <span className="font-mono text-muted" style={{ display: 'block', fontSize: '0.68rem' }}>
-                          {item.incident_uuid.length > 22 ? `${item.incident_uuid.slice(0, 20)}...` : item.incident_uuid}
+                        <span className="font-mono text-muted" style={{ display: 'block', fontSize: '0.66rem' }}>
+                          {item.incident_uuid.slice(0, 16)}...
                         </span>
                       )}
                     </td>
+
+                    {/* 3. Status */}
                     <td>
-                      <strong className={isCrit ? 'text-critical' : isHigh ? 'text-warning' : ''}>
+                      <DataStatusBadge incident={item} size="sm" />
+                    </td>
+
+                    {/* 4. Risk */}
+                    <td>
+                      <strong className="font-mono" style={{ color: item.risk_score >= 70 ? '#DC2626' : item.risk_score >= 45 ? '#EA580C' : '#059669' }}>
                         {item.risk_score.toFixed(1)} / 100
                       </strong>
                     </td>
+
+                    {/* 5. Location */}
                     <td>
-                      <span className={`status-indicator-tag ${isCrit ? 'critical' : isMod || isHigh ? 'warning' : 'success'}`}>
-                        {item.risk_level}
+                      <span className="font-bold">{item.state ? `${item.state}` : 'National Corridor'}</span>
+                      <span className="text-secondary" style={{ display: 'block', fontSize: '0.7rem' }}>
+                        {item.centroid_latitude?.toFixed(2)}°N, {item.centroid_longitude?.toFixed(2)}°E &bull; {item.spatial_context}
                       </span>
                     </td>
+
+                    {/* 6. Facility */}
                     <td>
-                      <OperationalPriorityBadge incident={item} size="sm" />
+                      {isFacilityAssociated ? (
+                        <div>
+                          <span className="font-bold">{item.nearest_facility_name}</span>
+                          <span className="text-muted" style={{ display: 'block', fontSize: '0.68rem' }}>
+                            {distMeters === 0 ? 'Inside Polygon' : `${distMeters.toLocaleString()}m offset`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="font-mono text-muted" style={{ fontWeight: 600 }}>NONE</span>
+                          <span className="text-muted" style={{ display: 'block', fontSize: '0.68rem' }}>
+                            &gt;1,000m threshold
+                          </span>
+                        </div>
+                      )}
                     </td>
-                    <td className="data-status-col">
-                      <DataStatusBadge incident={item} size="sm" />
-                    </td>
-                    <td>
-                      <span className={`status-indicator-tag ${
-                        tempStatus === 'LIVE' ? 'critical' : tempStatus === 'RECENT' ? 'info' : tempStatus === 'DEMO' ? 'warning' : 'neutral'
-                      }`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
-                        {tempStatus === 'DEMO' ? '⚠ DEMO DATA' : tempStatus.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="font-bold">{item.nearest_facility_name}</span>
-                      <span className="text-secondary" style={{ display: 'block', fontSize: '0.72rem' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--primary, #38BDF8)', marginRight: '4px' }}>
-                          📍 {item.state || 'India'}
-                        </span>
-                        &bull; {item.spatial_context}
-                      </span>
-                    </td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
-                      {formatToIST(temporal.first_detected || item.first_detected)}
-                    </td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
-                      {formatToIST(temporal.last_detected || item.last_detected)}
-                    </td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
-                      {temporal.formatted_freshness}
-                    </td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.76rem' }}>
-                      {detections}
-                    </td>
+
+                    {/* 7. Peak FRP */}
                     <td className="font-mono font-bold" style={{ whiteSpace: 'nowrap' }}>
                       {maxFrp.toFixed(1)} MW
                     </td>
-                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem' }}>
-                      {item.action_directive || item.action_code?.replace(/_/g, ' ')}
+
+                    {/* 8. Observation Age */}
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.74rem', whiteSpace: 'nowrap' }}>
+                      {temporal.formatted_freshness || formatRelativeAge(temporal.last_detected, 'ago')}
                     </td>
+
+                    {/* 9. Exposure */}
                     <td>
-                      <span className={`status-indicator-tag ${
-                        invStatus === 'VERIFIED_FIRE' ? 'critical' : invStatus === 'FALSE_ALARM' ? 'success' : invStatus === 'UNDER_REVIEW' ? 'warning' : 'neutral'
-                      }`} style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
-                        {invStatus}
+                      <span className="op-badge-pill" style={{
+                        background: exposureStatus === 'HIGH' ? 'rgba(220, 38, 38, 0.1)' : exposureStatus === 'MEDIUM' ? 'rgba(234, 88, 12, 0.1)' : 'rgba(5, 150, 105, 0.1)',
+                        color: exposureStatus === 'HIGH' ? '#DC2626' : exposureStatus === 'MEDIUM' ? '#EA580C' : '#059669'
+                      }}>
+                        {exposureStatus}
                       </span>
+                    </td>
+
+                    {/* 10. Verification */}
+                    <td>
+                      <span className={`op-badge-pill ${
+                        verificationLabel === 'VERIFIED' ? 'op-badge-live' : verificationLabel === 'REJECTED' ? 'op-badge-crit' : 'op-badge-low'
+                      }`}>
+                        {verificationLabel}
+                      </span>
+                    </td>
+
+                    {/* 11. Updated */}
+                    <td className="font-mono text-secondary" style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                      {formatToIST(temporal.last_detected || item.last_detected)}
                     </td>
                   </tr>
                 );

@@ -397,7 +397,7 @@ export const GroundTruthReviewPage = () => {
                   <th>Peak FRP</th>
                   <th>Risk Tier</th>
                   <th>Abnormality</th>
-                  <th>Weather / Plume</th>
+                  <th>Weather / Downwind</th>
                   <th>Assigned Label</th>
                   <th>Reviewer &amp; Notes</th>
                   <th style={{ textAlign: 'center' }}>Action</th>
@@ -423,6 +423,7 @@ export const GroundTruthReviewPage = () => {
                     const isHigh = item.risk_level === 'HIGH';
                     const abStatus = item.abnormality_detection?.abnormality_status || 'NORMAL';
                     const wx = item.weather_context || {};
+                    const isAssociated = (item.distance_to_industry_meters ?? 99999) <= 1000;
 
                     return (
                       <tr key={item.incident_uuid}>
@@ -431,10 +432,12 @@ export const GroundTruthReviewPage = () => {
                         </td>
                         <td>
                           <div className="font-bold" style={{ fontSize: '0.84rem' }}>
-                            {item.facility_name}
+                            {isAssociated ? item.facility_name : 'NONE'}
                           </div>
                           <span className="text-secondary" style={{ fontSize: '0.72rem' }}>
-                            {item.distance_to_industry_meters === 0 ? 'Inside Perimeter' : `${item.distance_to_industry_meters.toLocaleString()}m from boundary`}
+                            {isAssociated
+                              ? (item.distance_to_industry_meters === 0 ? 'Inside Perimeter' : `${item.distance_to_industry_meters.toLocaleString()}m from boundary`)
+                              : `Outside 1km threshold (${item.distance_to_industry_meters?.toLocaleString()}m)`}
                           </span>
                         </td>
                         <td className="font-mono font-bold">
@@ -458,7 +461,7 @@ export const GroundTruthReviewPage = () => {
                             {wx.wind_speed_kmh ? `${wx.wind_speed_kmh} km/h ${wx.wind_cardinal}` : 'Telemetry Active'}
                           </div>
                           <span className="text-secondary" style={{ fontSize: '0.7rem' }}>
-                            Plume: <strong>{wx.plume_dispersion_heading || 'N/A'}</strong>
+                            Downwind: <strong>{wx.plume_dispersion_heading || wx.downwind_heading || 'N/A'}</strong>
                           </span>
                         </td>
                         <td>

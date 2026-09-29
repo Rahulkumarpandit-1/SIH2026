@@ -1,0 +1,35 @@
+{
+  "source": "NASA_FIRMS_API",
+  "source_url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/51ca9bc710f3add041124d86ddbb631d/VIIRS_SNPP_NRT/68.0,8.0,97.5,35.5/3",
+  "sensor": "VIIRS_SNPP_NRT",
+  "bbox": [
+    68.0,
+    8.0,
+    97.5,
+    35.5
+  ],
+  "day_range": 3,
+  "target_date": null,
+  "download_timestamp_utc": "2026-09-29T19:03:39.539243",
+  "raw_filename": "VIIRS_SNPP_NRT_68.0_8.0_97.5_35.5_nrt_20260929_190339.csv",
+  "raw_filepath": "C:\\Users\\LENOVO\\OneDrive\\Desktop\\SIH2026\\data\\raw\\firms\\2026\\09\\VIIRS_SNPP_NRT_68.0_8.0_97.5_35.5_nrt_20260929_190339.csv",
+  "raw_record_count": 1302,
+  "sha256_checksum": "4a33a8d91760d7cb002d31e7564292563b0e064cd7676e555b6339fbcde1140e",
+  "columns": [
+    "latitude",
+    "longitude",
+    "bright_ti4",
+    "scan",
+    "track",
+    "acq_date",
+    "acq_time",
+    "satellite",
+    "instrument",
+    "confidence",
+    "version",
+    "bright_ti5",
+    "frp",
+    "daynight"
+  ],
+  "retrieval_status": "SUCCESS"
+}

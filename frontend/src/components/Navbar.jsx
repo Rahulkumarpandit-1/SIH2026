@@ -33,10 +33,10 @@ export const Navbar = ({
         {/* Brand Left */}
         <div className="nav-brand-block" onClick={() => handleNavClick('overview')}>
           <div className="nav-brand-title-row">
-            <span className="nav-brand-title">SIH26162</span>
+            <span className="nav-brand-title">FireIntel OPS</span>
             <span className="nav-mobile-scope-pill">🇮🇳 India</span>
           </div>
-          <span className="nav-brand-sub">Thermal Fire Intelligence</span>
+          <span className="nav-brand-sub">Industrial Fire Intelligence &amp; Risk Monitoring System</span>
         </div>
 
         {/* Text Navigation Links (Desktop) */}

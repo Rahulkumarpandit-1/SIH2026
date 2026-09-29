@@ -6,13 +6,17 @@ import { calculateOperationalPriority } from '../utils/priorityEngine';
  * Reusable operational priority indicator badge.
  * Multi-Signal Synthesis: Risk (40%), Abnormality (25%), Exposure (20%), Freshness (15%)
  */
-export const OperationalPriorityBadge = ({ incident, size = 'md', showScore = false, showTooltip = true }) => {
+export const OperationalPriorityBadge = ({ incident, size = 'md', showScore = false, showLabel = false, showTooltip = true }) => {
   if (!incident) return null;
 
   const { level, score, config, breakdown } = calculateOperationalPriority(incident);
   const Icon = config.icon;
   const sizeClass = size === 'sm' ? 'op-priority-sm' : size === 'lg' ? 'op-priority-lg' : 'op-priority-md';
   const levelClass = `op-p-${level.toLowerCase()}`;
+
+  const displayText = showLabel
+    ? `${config.prefix || config.code || 'P'} ${config.level}`
+    : (config.prefix || config.label);
 
   const tooltipText = showTooltip
     ? `${config.prefix} • ${config.label} (${score}/100)\n` +
@@ -34,7 +38,7 @@ export const OperationalPriorityBadge = ({ incident, size = 'md', showScore = fa
     >
       <span className="op-priority-dot" style={{ backgroundColor: config.color }} />
       <Icon size={size === 'sm' ? 10 : size === 'lg' ? 13 : 11} />
-      <span>{config.prefix || config.label}</span>
+      <span>{displayText}</span>
       {showScore && <span style={{ opacity: 0.85, fontSize: '0.9em' }}>({score})</span>}
     </span>
   );

@@ -172,10 +172,10 @@ export const ExecutiveSummaryCard = ({ incidentUuid, initialData = null }) => {
           <span style={{ margin: '0 0.35rem' }}>&bull;</span>
           <span>Active Duration: <strong className="font-mono">{evidence_telemetry.active_duration_hours?.toFixed(1) || '0.0'}h</strong></span>
           <span style={{ margin: '0 0.35rem' }}>&bull;</span>
-          <span>Plume: <strong className="font-mono">{evidence_telemetry.plume_dispersion_heading || 'N/A'}</strong></span>
+          <span>Downwind Heading: <strong className="font-mono">{evidence_telemetry.plume_dispersion_heading || evidence_telemetry.downwind_heading || 'N/A'}</strong></span>
         </div>
         <div>
-          <span>Deterministic Telemetry Engine &bull; Zero External LLMs &bull; Audit-Ready</span>
+          <span>Deterministic Risk Engine &bull; Zero External LLMs &bull; Audit-Ready</span>
         </div>
       </div>
     </section>

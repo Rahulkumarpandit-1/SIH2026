@@ -24,74 +24,80 @@ import { getDataStatus } from './dataProvenance';
 export const PRIORITY_CONFIG = {
   CRITICAL: {
     level: 'CRITICAL',
-    label: 'CRITICAL',
-    prefix: 'PRIORITY 1',
+    label: 'Critical / Urgent Verification',
+    code: 'P1',
+    prefix: 'P1',
     color: '#EF4444',
-    bgColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.45)',
+    bgColor: 'rgba(239, 68, 68, 0.10)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
     textColor: '#DC2626',
     icon: AlertOctagon,
-    action: 'IMMEDIATE DISPATCH & EVACUATION RADIUS PROTOCOL',
+    action: 'URGENT GROUND VERIFICATION',
     description: 'Catastrophic live thermal event exceeding baseline with critical downwind exposure.',
   },
   HIGH: {
     level: 'HIGH',
-    label: 'HIGH',
-    prefix: 'PRIORITY 2',
+    label: 'High-Priority Investigation',
+    code: 'P2',
+    prefix: 'P2',
     color: '#F97316',
-    bgColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    bgColor: 'rgba(249, 115, 22, 0.10)',
+    borderColor: 'rgba(249, 115, 22, 0.35)',
     textColor: '#EA580C',
     icon: AlertTriangle,
-    action: 'PRIORITY INDUSTRIAL VERIFICATION & FOAM TENDER STANDBY',
-    description: 'Significant thermal excursion near industrial boundaries requiring active intervention.',
+    action: 'PRIORITY INDUSTRIAL INVESTIGATION',
+    description: 'Significant thermal excursion near industrial boundaries requiring active investigation.',
   },
   MEDIUM: {
     level: 'MEDIUM',
-    label: 'MEDIUM',
-    prefix: 'PRIORITY 3',
-    color: '#F59E0B',
-    bgColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.45)',
-    textColor: '#D97706',
+    label: 'Routine Investigation',
+    code: 'P3',
+    prefix: 'P3',
+    color: '#0D9488',
+    bgColor: 'rgba(13, 148, 136, 0.10)',
+    borderColor: 'rgba(13, 148, 136, 0.35)',
+    textColor: '#0F766E',
     icon: AlertCircle,
-    action: 'REGIONAL SENSOR CONFIRMATION & FACILITY INQUIRY',
-    description: 'Elevated heat source requiring scheduled perimeter verification.',
+    action: 'ROUTINE INVESTIGATION',
+    description: 'Elevated thermal anomaly requiring scheduled perimeter verification.',
   },
   LOW: {
     level: 'LOW',
-    label: 'LOW',
-    prefix: 'PRIORITY 4',
+    label: 'Routine Investigation',
+    code: 'P3',
+    prefix: 'P3',
     color: '#10B981',
-    bgColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.45)',
+    bgColor: 'rgba(16, 185, 129, 0.10)',
+    borderColor: 'rgba(16, 185, 129, 0.35)',
     textColor: '#059669',
     icon: Info,
-    action: 'ROUTINE LOGGING & PASSIVE BASELINE MONITORING',
-    description: 'Thermal activity consistent with nominal historical baselines or rural biomass.',
+    action: 'ROUTINE MONITORING',
+    description: 'Thermal activity consistent with nominal historical baselines or rural background.',
   },
   ARCHIVE: {
     level: 'LOW',
-    label: 'ARCHIVED',
-    prefix: 'PRIORITY 4',
+    label: 'Historical / Reference',
+    code: 'P4',
+    prefix: 'P4',
     color: '#6B7280',
-    bgColor: 'rgba(107, 114, 128, 0.12)',
-    borderColor: 'rgba(107, 114, 128, 0.40)',
+    bgColor: 'rgba(107, 114, 128, 0.10)',
+    borderColor: 'rgba(107, 114, 128, 0.30)',
     textColor: '#4B5563',
     icon: Archive,
-    action: 'ARCHIVED TELEMETRY RECORD & HISTORICAL BASELINE',
-    description: 'Historical thermal observation (>7 days old). No active emergency dispatch required.',
+    action: 'HISTORICAL BASELINE LOG',
+    description: 'Historical thermal observation (>7 days old). Reference data only.',
   },
   DEMO: {
     level: 'LOW',
-    label: 'DEMO',
-    prefix: 'DEMO DATA',
+    label: 'Historical / Reference (Demo)',
+    code: 'P4',
+    prefix: 'P4',
     color: '#F59E0B',
-    bgColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.40)',
+    bgColor: 'rgba(245, 158, 11, 0.10)',
+    borderColor: 'rgba(245, 158, 11, 0.30)',
     textColor: '#B45309',
     icon: Info,
-    action: 'SEEDED DEMO RECORD — NOT REAL TELEMETRY',
+    action: 'SEEDED DEMO RECORD',
     description: 'Demonstration record for UI testing and system illustration.',
   },
 };
@@ -170,14 +176,19 @@ export function calculateOperationalPriority(incident) {
     const ageMins = (diffHours ?? 0) * 60;
     freshnessScore = Math.max(0, Math.min(100, Math.round(100 * (1 - ageMins / 1440))));
     const rawQuality = (riskScore * 0.45) + (exposureScore * 0.30) + (abScore * 0.25);
-    finalScore = Number((75 + (rawQuality / 100) * 15 + (freshnessScore / 100) * 10).toFixed(1));
+    finalScore = Number((70 + (rawQuality / 100) * 20 + (freshnessScore / 100) * 10).toFixed(1));
 
-    if (finalScore >= 85 || riskScore >= 80) {
+    // CRITICAL (P1) only if operational severity is truly high/critical
+    const backendRiskLevel = String(incident.risk_level || '').toUpperCase();
+    if (riskScore >= 70 || backendRiskLevel === 'CRITICAL') {
       level = 'CRITICAL';
-      configKey = 'CRITICAL';
-    } else {
+      configKey = 'CRITICAL'; // P1
+    } else if (riskScore >= 45 || backendRiskLevel === 'HIGH') {
       level = 'HIGH';
-      configKey = 'HIGH';
+      configKey = 'HIGH'; // P2
+    } else {
+      level = 'MEDIUM';
+      configKey = 'MEDIUM'; // P3 Routine investigation
     }
   } else if (tier === 'RECENT') {
     // -------------------------------------------------------------------------
@@ -188,32 +199,32 @@ export function calculateOperationalPriority(incident) {
     const rawQuality = (riskScore * 0.50) + (exposureScore * 0.30) + (abScore * 0.20);
     finalScore = Number((45 + (rawQuality / 100) * 20 + (freshnessScore / 100) * 9.9).toFixed(1));
 
-    if (finalScore >= 60) {
+    const backendRiskLevel = String(incident.risk_level || '').toUpperCase();
+    if (riskScore >= 70 || backendRiskLevel === 'CRITICAL' || backendRiskLevel === 'HIGH') {
       level = 'HIGH';
-      configKey = 'HIGH';
+      configKey = 'HIGH'; // P2 High-priority investigation
     } else {
       level = 'MEDIUM';
-      configKey = 'MEDIUM';
+      configKey = 'MEDIUM'; // P3 Routine investigation
     }
   } else if (tier === 'HISTORICAL') {
     // -------------------------------------------------------------------------
     // TIER 3: HISTORICAL (> 7 days) — Base Range: [15.0, 44.9]
-    // HEAVY AGE PENALTY: decay proportional to 7 / ageDays
     // -------------------------------------------------------------------------
     const effectiveDays = Math.max(7, ageDays || 30);
-    decayFactor = Number((7 / effectiveDays).toFixed(3)); // e.g. 31.9 days -> 0.219
+    decayFactor = Number((7 / effectiveDays).toFixed(3));
     const rawQuality = ((riskScore * 0.60) + (exposureScore * 0.40)) * decayFactor;
     finalScore = Number((15 + Math.min(29.9, (rawQuality / 100) * 29.9)).toFixed(1));
 
     level = 'LOW';
-    configKey = 'ARCHIVE';
+    configKey = 'ARCHIVE'; // P4 Historical / reference
   } else {
     // -------------------------------------------------------------------------
-    // TIER 4: DEMO (Seeded fallback dataset) — Base Range: [5.0, 14.9]
+    // TIER 4: DEMO (Seeded fallback dataset)
     // -------------------------------------------------------------------------
     finalScore = Number((5 + (riskScore / 100) * 9.9).toFixed(1));
     level = 'LOW';
-    configKey = 'DEMO';
+    configKey = 'DEMO'; // P4 Demo
   }
 
   return {

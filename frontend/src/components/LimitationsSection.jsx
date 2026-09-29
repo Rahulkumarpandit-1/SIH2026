@@ -69,8 +69,8 @@ export const LimitationsSection = () => {
           <div className="hitl-arrow">&rarr;</div>
 
           <div className="hitl-step">
-            <span className="hitl-tag">2. AI Triage</span>
-            <strong>Phase 4 Risk Score</strong>
+            <span className="hitl-tag">2. Triage</span>
+            <strong>Explainable Risk Score</strong>
             <span>Multi-signal prioritization queue</span>
           </div>
           <div className="hitl-arrow">&rarr;</div>
