@@ -1,15 +1,15 @@
 import React from 'react';
-import { 
-  Database, 
-  CheckCircle2, 
-  Layers, 
-  Flame, 
-  ShieldCheck, 
-  Wrench, 
-  AlertTriangle, 
-  TrendingUp, 
-  BarChart2, 
-  Building2, 
+import {
+  Database,
+  CheckCircle2,
+  Layers,
+  Flame,
+  ShieldCheck,
+  Wrench,
+  AlertTriangle,
+  TrendingUp,
+  BarChart2,
+  Building2,
   MapPin,
   FileCheck2,
   Edit3
@@ -18,23 +18,19 @@ import {
 export const DatasetQualityCard = ({ qualityData, loading = false }) => {
   if (loading) {
     return (
-      <div className="card-glass p-6 animate-pulse">
-        <div className="h-6 bg-slate-700/50 rounded w-1/3 mb-4"></div>
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="h-16 bg-slate-800/40 rounded"></div>
-          <div className="h-16 bg-slate-800/40 rounded"></div>
-          <div className="h-16 bg-slate-800/40 rounded"></div>
-          <div className="h-16 bg-slate-800/40 rounded"></div>
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem', textAlign: 'center', padding: '2rem' }}>
+          <Database size={28} style={{ opacity: 0.4, display: 'block', margin: '0 auto 0.5rem' }} />
+          Loading dataset quality telemetry...
         </div>
-        <div className="h-32 bg-slate-800/30 rounded"></div>
       </div>
     );
   }
 
   if (!qualityData) {
     return (
-      <div className="card-glass p-6 text-center text-slate-400">
-        <Database className="mx-auto mb-2 opacity-50" size={32} />
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        <Database size={32} style={{ opacity: 0.4, display: 'block', margin: '0 auto 0.5rem' }} />
         <p>No dataset quality telemetry available.</p>
       </div>
     );
@@ -54,119 +50,115 @@ export const DatasetQualityCard = ({ qualityData, loading = false }) => {
   } = qualityData;
 
   const classConfig = {
-    TRUE_FIRE: { label: 'True Fire', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.15)', icon: Flame },
-    CONTROLLED_FLARING: { label: 'Controlled Flaring', color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.15)', icon: ShieldCheck },
-    FALSE_ALARM: { label: 'False Alarm', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)', icon: AlertTriangle },
-    MAINTENANCE_ACTIVITY: { label: 'Maintenance', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.15)', icon: Wrench },
-    UNLABELED: { label: 'Pending Review', color: '#64748B', bg: 'rgba(100, 116, 139, 0.15)', icon: Layers }
+    TRUE_FIRE:           { label: 'True Fire',          color: '#D92D20', bg: 'rgba(217,45,32,0.08)',   icon: Flame },
+    CONTROLLED_FLARING:  { label: 'Controlled Flaring', color: '#175CD3', bg: 'rgba(23,92,211,0.08)',   icon: ShieldCheck },
+    FALSE_ALARM:         { label: 'False Alarm',         color: '#B7791F', bg: 'rgba(183,121,31,0.08)', icon: AlertTriangle },
+    MAINTENANCE_ACTIVITY:{ label: 'Maintenance',        color: '#6D28D9', bg: 'rgba(109,40,217,0.08)', icon: Wrench },
+    UNLABELED:           { label: 'Pending Review',     color: '#6B7280', bg: 'rgba(107,114,128,0.08)', icon: Layers }
   };
 
   const maxTrend = Math.max(1, ...last_7_day_trend.map(t => t.count));
 
   return (
-    <div className="card-glass p-6 border border-slate-700/60 shadow-xl rounded-xl">
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem' }}>
+
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-divider)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(40,122,75,0.08)', border: '1px solid rgba(40,122,75,0.2)', color: '#287A4B', display: 'flex' }}>
             <FileCheck2 size={22} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               Dataset Quality &amp; Governance
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
+              <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: '20px', background: 'rgba(40,122,75,0.1)', color: '#287A4B', border: '1px solid rgba(40,122,75,0.25)', fontWeight: 600 }}>
                 Phase 14C
               </span>
             </h3>
-            <p className="text-xs text-slate-400">
+            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
               Verified ground-truth coverage, label distributions, and empirical training data integrity
             </p>
           </div>
         </div>
 
         {/* Data Integrity Score */}
-        <div className="flex items-center gap-2 bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-slate-700/80">
-          <span className="text-xs text-slate-400">Data Integrity:</span>
-          <span className="text-sm font-bold text-emerald-400">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-divider)', borderRadius: '6px', padding: '0.4rem 0.85rem' }}>
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Data Integrity:</span>
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#287A4B', fontFamily: 'var(--font-mono)' }}>
             {data_integrity_score.toFixed(1)}/100
           </span>
         </div>
       </div>
 
       {/* Top 4 KPI Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">Total Incidents</span>
-          <div className="text-2xl font-bold text-slate-100">{total_incidents}</div>
-          <span className="text-[11px] text-slate-500">Clusters &amp; historical</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.85rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Total Incidents</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{total_incidents}</div>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Clusters &amp; historical</span>
         </div>
 
-        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">Human-Verified</span>
-          <div className="text-2xl font-bold text-emerald-400">{total_labeled_incidents}</div>
-          <span className="text-[11px] text-slate-500">Analyst reviewed</span>
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.85rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Human-Verified</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#287A4B', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{total_labeled_incidents}</div>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Analyst reviewed</span>
         </div>
 
-        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">Verified Coverage</span>
-          <div className="text-2xl font-bold text-sky-400">{verified_coverage_pct.toFixed(1)}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-            <div 
-              className="bg-sky-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, verified_coverage_pct)}%` }}
-            />
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.85rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Verified Coverage</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#175CD3', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{verified_coverage_pct.toFixed(1)}%</div>
+          <div style={{ width: '100%', background: 'var(--border-divider)', height: '4px', borderRadius: '999px', marginTop: '0.4rem', overflow: 'hidden' }}>
+            <div style={{ background: '#175CD3', height: '100%', borderRadius: '999px', width: `${Math.min(100, verified_coverage_pct)}%`, transition: 'width 0.5s ease' }} />
           </div>
         </div>
 
-        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-          <span className="text-xs text-slate-400 block mb-1">Quality Modifications</span>
-          <div className="text-2xl font-bold text-amber-400">{edited_labels_count}</div>
-          <span className="text-[11px] text-slate-500">Audit-tracked edits</span>
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.85rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Quality Modifications</span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#B7791F', fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{edited_labels_count}</div>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Audit-tracked edits</span>
         </div>
       </div>
 
-      {/* Label Distribution Bar & Legend */}
-      <div className="mb-6 bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+      {/* Label Distribution */}
+      <div style={{ marginBottom: '1.25rem', background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
             Operational Label Distribution
           </span>
-          <span className="text-xs text-slate-400">
+          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
             {total_labeled_incidents} of {total_incidents} classified
           </span>
         </div>
 
-        {/* Multi-color segment bar */}
-        <div className="w-full h-3 rounded-full bg-slate-800 overflow-hidden flex mb-3">
+        {/* Segmented bar */}
+        <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'var(--border-divider)', overflow: 'hidden', display: 'flex', marginBottom: '0.75rem' }}>
           {Object.entries(label_distribution).map(([key, count]) => {
             if (count === 0) return null;
             const pct = (count / Math.max(1, total_incidents)) * 100;
-            const cfg = classConfig[key] || { color: '#64748B' };
+            const cfg = classConfig[key] || { color: '#6B7280' };
             return (
-              <div 
+              <div
                 key={key}
-                style={{ width: `${pct}%`, backgroundColor: cfg.color }}
+                style={{ width: `${pct}%`, background: cfg.color, height: '100%', transition: 'width 0.3s ease' }}
                 title={`${cfg.label}: ${count} (${pct.toFixed(1)}%)`}
-                className="h-full transition-all duration-300"
               />
             );
           })}
         </div>
 
         {/* Chips */}
-        <div className="flex flex-wrap gap-2">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {Object.entries(label_distribution).map(([key, count]) => {
-            const cfg = classConfig[key] || { label: key, color: '#64748B', bg: 'rgba(100,116,139,0.1)' };
+            const cfg = classConfig[key] || { label: key, color: '#6B7280', bg: 'rgba(107,114,128,0.08)', icon: Layers };
             const Icon = cfg.icon || Layers;
             return (
-              <div 
-                key={key} 
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs"
-                style={{ backgroundColor: cfg.bg, borderColor: `${cfg.color}40`, color: cfg.color }}
+              <div
+                key={key}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: cfg.bg, border: `1px solid ${cfg.color}40`, color: cfg.color, fontSize: '0.76rem' }}
               >
-                <Icon size={13} />
-                <span className="font-medium">{cfg.label}:</span>
-                <span className="font-bold">{count}</span>
+                <Icon size={12} />
+                <span style={{ fontWeight: 500 }}>{cfg.label}:</span>
+                <span style={{ fontWeight: 700 }}>{count}</span>
               </div>
             );
           })}
@@ -174,23 +166,23 @@ export const DatasetQualityCard = ({ qualityData, loading = false }) => {
       </div>
 
       {/* Two Columns: Facility Distribution & 7-Day Trend */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
         {/* Top Facilities */}
-        <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-          <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Building2 size={14} className="text-sky-400" />
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+          <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Building2 size={13} style={{ color: 'var(--status-info)' }} />
             Top Labeled Industrial Facilities
           </h4>
           {facility_distribution.length === 0 ? (
-            <p className="text-xs text-slate-500 py-2">No facilities labeled yet.</p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>No facilities labeled yet.</p>
           ) : (
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
               {facility_distribution.slice(0, 4).map((fac, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-slate-800/60 last:border-0">
-                  <span className="text-slate-300 truncate max-w-[200px]" title={fac.facility_name}>
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.4rem 0', borderBottom: idx < 3 ? '1px solid var(--border-subtle)' : 'none' }}>
+                  <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }} title={fac.facility_name}>
                     {fac.facility_name}
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-400 font-mono font-medium">
+                  <span style={{ padding: '0.1rem 0.5rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--status-info)', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '0.76rem', flexShrink: 0 }}>
                     {fac.count} {fac.count === 1 ? 'label' : 'labels'}
                   </span>
                 </div>
@@ -200,24 +192,23 @@ export const DatasetQualityCard = ({ qualityData, loading = false }) => {
         </div>
 
         {/* 7-Day Activity Trend */}
-        <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800">
-          <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <TrendingUp size={14} className="text-emerald-400" />
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+          <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <TrendingUp size={13} style={{ color: '#287A4B' }} />
             Last 7-Day Review Activity
           </h4>
-          <div className="flex items-end justify-between gap-1.5 h-20 pt-2">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.35rem', height: '72px', paddingTop: '0.5rem' }}>
             {last_7_day_trend.map((day, idx) => {
               const heightPct = maxTrend > 0 ? (day.count / maxTrend) * 100 : 0;
               const dateLabel = day.date ? day.date.slice(5) : `D-${idx}`;
               return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                  <span className="text-[10px] text-slate-400 font-mono">{day.count}</span>
-                  <div 
-                    className="w-full max-w-[24px] bg-emerald-500/30 hover:bg-emerald-500/50 rounded-t transition-all duration-300 border-t-2 border-emerald-400"
-                    style={{ height: `${Math.max(8, heightPct)}%` }}
+                <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', height: '100%', justifyContent: 'flex-end' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{day.count}</span>
+                  <div
+                    style={{ width: '100%', maxWidth: '20px', borderRadius: '2px 2px 0 0', background: 'rgba(40,122,75,0.25)', borderTop: '2px solid #287A4B', height: `${Math.max(8, heightPct)}%`, transition: 'height 0.3s ease' }}
                     title={`${day.date}: ${day.count} reviews`}
                   />
-                  <span className="text-[9px] text-slate-500 truncate w-full text-center">{dateLabel}</span>
+                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dateLabel}</span>
                 </div>
               );
             })}

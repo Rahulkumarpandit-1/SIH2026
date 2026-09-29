@@ -1,31 +1,25 @@
 import React from 'react';
-import { 
-  Cpu, 
-  ShieldAlert, 
-  ShieldCheck, 
-  AlertCircle, 
-  CheckCircle2, 
-  Layers, 
-  Scale, 
-  Building2, 
-  MapPin, 
+import {
+  Cpu,
+  ShieldAlert,
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  Layers,
+  Scale,
+  Building2,
+  MapPin,
   Users,
-  ArrowRight,
   Info
 } from 'lucide-react';
 
 export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
   if (loading) {
     return (
-      <div className="card-glass p-6 animate-pulse">
-        <div className="h-6 bg-slate-700/50 rounded w-1/3 mb-4"></div>
-        <div className="h-24 bg-slate-800/40 rounded mb-4"></div>
-        <div className="grid grid-cols-5 gap-3">
-          <div className="h-16 bg-slate-800/30 rounded"></div>
-          <div className="h-16 bg-slate-800/30 rounded"></div>
-          <div className="h-16 bg-slate-800/30 rounded"></div>
-          <div className="h-16 bg-slate-800/30 rounded"></div>
-          <div className="h-16 bg-slate-800/30 rounded"></div>
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem', textAlign: 'center', padding: '2rem' }}>
+          <Cpu size={28} style={{ opacity: 0.4, marginBottom: '0.5rem', display: 'block', margin: '0 auto 0.5rem' }} />
+          Loading ML training readiness evaluation...
         </div>
       </div>
     );
@@ -33,8 +27,8 @@ export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
 
   if (!readinessData) {
     return (
-      <div className="card-glass p-6 text-center text-slate-400">
-        <Cpu className="mx-auto mb-2 opacity-50" size={32} />
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+        <Cpu size={32} style={{ opacity: 0.4, marginBottom: '0.5rem', display: 'block', margin: '0 auto 0.5rem' }} />
         <p>No machine learning readiness evaluation available.</p>
       </div>
     );
@@ -43,7 +37,6 @@ export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
   const {
     readiness_state = 'NOT_READY',
     readiness_score = 0.0,
-    is_trainable = false,
     dimensions = {},
     dimension_telemetry = {},
     explanation = '',
@@ -55,25 +48,25 @@ export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
     NOT_READY: {
       label: 'NOT READY FOR SUPERVISED ML',
       sublabel: 'Statistical & geographic insufficiency',
-      color: '#EF4444',
-      bg: 'rgba(239, 68, 68, 0.12)',
-      border: 'rgba(239, 68, 68, 0.3)',
+      color: '#D92D20',
+      bg: 'rgba(217, 45, 32, 0.08)',
+      border: 'rgba(217, 45, 32, 0.25)',
       icon: ShieldAlert
     },
     LIMITED_TRAINING: {
       label: 'LIMITED EXPERIMENTAL TRAINING',
       sublabel: 'Suitable for benchmark evaluations',
-      color: '#F59E0B',
-      bg: 'rgba(245, 158, 11, 0.12)',
-      border: 'rgba(245, 158, 11, 0.3)',
+      color: '#B7791F',
+      bg: 'rgba(183, 121, 31, 0.08)',
+      border: 'rgba(183, 121, 31, 0.25)',
       icon: AlertCircle
     },
     PRODUCTION_READY: {
       label: 'PRODUCTION TRAINING READY',
       sublabel: 'Full multi-region empirical sufficiency',
-      color: '#10B981',
-      bg: 'rgba(16, 185, 129, 0.12)',
-      border: 'rgba(16, 185, 129, 0.3)',
+      color: '#287A4B',
+      bg: 'rgba(40, 122, 75, 0.08)',
+      border: 'rgba(40, 122, 75, 0.25)',
       icon: ShieldCheck
     }
   };
@@ -82,151 +75,94 @@ export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
   const StateIcon = currentCfg.icon;
 
   const dimensionItems = [
-    {
-      id: 'verified',
-      label: 'Verified Volume',
-      score: dimensions.total_verified_score ?? 0,
-      value: `${dimension_telemetry.verified_count ?? 0} labels`,
-      target: '50 target',
-      icon: Layers
-    },
-    {
-      id: 'balance',
-      label: 'Class Balance',
-      score: dimensions.class_balance_score ?? 0,
-      value: `${dimension_telemetry.classes_represented ?? 0}/4 classes`,
-      target: '4 balanced',
-      icon: Scale
-    },
-    {
-      id: 'facility',
-      label: 'Facility Diversity',
-      score: dimensions.facility_diversity_score ?? 0,
-      value: `${dimension_telemetry.facility_count ?? 0} sites`,
-      target: '5+ sites',
-      icon: Building2
-    },
-    {
-      id: 'region',
-      label: 'Regional Diversity',
-      score: dimensions.regional_diversity_score ?? 0,
-      value: `${dimension_telemetry.region_count ?? 0} regions`,
-      target: '2+ corridors',
-      icon: MapPin
-    },
-    {
-      id: 'reviewer',
-      label: 'Reviewer Diversity',
-      score: dimensions.reviewer_diversity_score ?? 0,
-      value: `${dimension_telemetry.reviewer_count ?? 0} analysts`,
-      target: '3+ reviewers',
-      icon: Users
-    }
+    { id: 'verified', label: 'Verified Volume', score: dimensions.total_verified_score ?? 0, value: `${dimension_telemetry.verified_count ?? 0} labels`, target: '50 target', icon: Layers },
+    { id: 'balance', label: 'Class Balance', score: dimensions.class_balance_score ?? 0, value: `${dimension_telemetry.classes_represented ?? 0}/4 classes`, target: '4 balanced', icon: Scale },
+    { id: 'facility', label: 'Facility Diversity', score: dimensions.facility_diversity_score ?? 0, value: `${dimension_telemetry.facility_count ?? 0} sites`, target: '5+ sites', icon: Building2 },
+    { id: 'region', label: 'Regional Diversity', score: dimensions.regional_diversity_score ?? 0, value: `${dimension_telemetry.region_count ?? 0} regions`, target: '2+ corridors', icon: MapPin },
+    { id: 'reviewer', label: 'Reviewer Diversity', score: dimensions.reviewer_diversity_score ?? 0, value: `${dimension_telemetry.reviewer_count ?? 0} analysts`, target: '3+ reviewers', icon: Users }
   ];
 
+  const barColor = readiness_score >= 75 ? '#287A4B' : readiness_score >= 40 ? '#B7791F' : '#D92D20';
+
   return (
-    <div className="card-glass p-6 border border-slate-700/60 shadow-xl rounded-xl">
-      {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div 
-            className="p-2.5 rounded-lg border"
-            style={{ backgroundColor: currentCfg.bg, borderColor: currentCfg.border, color: currentCfg.color }}
-          >
-            <StateIcon size={24} />
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', borderRadius: '8px', padding: '1.5rem' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-divider)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ padding: '0.5rem', borderRadius: '6px', background: currentCfg.bg, border: `1px solid ${currentCfg.border}`, color: currentCfg.color, display: 'flex' }}>
+            <StateIcon size={22} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-slate-100">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>
                 Machine Learning Training Readiness Engine
               </h3>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-medium">
+              <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: '20px', background: 'rgba(139, 92, 246, 0.1)', color: '#8B5CF6', border: '1px solid rgba(139, 92, 246, 0.25)', fontWeight: 600 }}>
                 Phase 14D
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
               Honest 5-dimensional evaluation of empirical dataset sufficiency for supervised models
             </p>
           </div>
         </div>
 
         {/* Status Badge */}
-        <div 
-          className="px-4 py-2 rounded-lg border flex items-center gap-2"
-          style={{ backgroundColor: currentCfg.bg, borderColor: currentCfg.border }}
-        >
-          <StateIcon size={18} style={{ color: currentCfg.color }} />
+        <div style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', background: currentCfg.bg, border: `1px solid ${currentCfg.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <StateIcon size={16} style={{ color: currentCfg.color, flexShrink: 0 }} />
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: currentCfg.color }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', color: currentCfg.color, fontFamily: 'var(--font-mono)' }}>
               {currentCfg.label}
             </div>
-            <div className="text-[10px] text-slate-400">{currentCfg.sublabel}</div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{currentCfg.sublabel}</div>
           </div>
         </div>
       </div>
 
-      {/* Composite Readiness Score Gauge */}
-      <div className="mb-6 bg-slate-900/50 p-4 rounded-lg border border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+      {/* Score Gauge */}
+      <div style={{ marginBottom: '1.25rem', background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             Empirical ML Training Readiness Score
           </span>
-          <span className="text-base font-bold font-mono" style={{ color: currentCfg.color }}>
+          <span style={{ fontSize: '0.95rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: barColor }}>
             {readiness_score.toFixed(1)} / 100
           </span>
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden mb-2">
-          <div 
-            className="h-full rounded-full transition-all duration-700"
-            style={{ 
-              width: `${Math.max(3, Math.min(100, readiness_score))}%`, 
-              backgroundColor: currentCfg.color 
-            }}
-          />
+        <div style={{ width: '100%', background: 'var(--border-divider)', height: '10px', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.5rem' }}>
+          <div style={{ height: '100%', borderRadius: '999px', transition: 'width 0.6s ease', width: `${Math.max(3, Math.min(100, readiness_score))}%`, background: barColor }} />
         </div>
 
-        {/* Target ticks */}
-        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           <span>0 (Not Ready)</span>
-          <span className="text-amber-400">40 (Limited Experimental)</span>
-          <span className="text-emerald-400">75+ (Production Ready)</span>
+          <span style={{ color: '#B7791F' }}>40 (Limited Experimental)</span>
+          <span style={{ color: '#287A4B' }}>75+ (Production Ready)</span>
           <span>100</span>
         </div>
       </div>
 
       {/* 5-Dimensional Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
         {dimensionItems.map((dim) => {
           const Icon = dim.icon;
-          const scoreColor = 
-            dim.score >= 75 ? '#10B981' :
-            dim.score >= 40 ? '#F59E0B' :
-            '#EF4444';
-
+          const scoreColor = dim.score >= 75 ? '#287A4B' : dim.score >= 40 ? '#B7791F' : '#D92D20';
           return (
-            <div key={dim.id} className="bg-slate-900/40 p-3 rounded-lg border border-slate-800">
-              <div className="flex items-center justify-between text-slate-400 mb-1.5">
-                <span className="text-[11px] font-medium truncate">{dim.label}</span>
-                <Icon size={14} className="text-slate-400 shrink-0" />
+            <div key={dim.id} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>{dim.label}</span>
+                <Icon size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               </div>
-
-              <div className="text-sm font-bold text-slate-100 font-mono mb-1">
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
                 {dim.value}
               </div>
-
-              {/* Dimension mini-bar */}
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-1">
-                <div 
-                  className="h-full rounded-full"
-                  style={{ width: `${Math.max(5, dim.score)}%`, backgroundColor: scoreColor }}
-                />
+              <div style={{ width: '100%', background: 'var(--border-divider)', height: '4px', borderRadius: '999px', overflow: 'hidden', marginBottom: '0.3rem' }}>
+                <div style={{ height: '100%', borderRadius: '999px', width: `${Math.max(5, dim.score)}%`, background: scoreColor }} />
               </div>
-
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-slate-500 font-mono">{dim.score.toFixed(0)}%</span>
-                <span className="text-slate-500">{dim.target}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem' }}>
+                <span style={{ color: scoreColor, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{dim.score.toFixed(0)}%</span>
+                <span style={{ color: 'var(--text-muted)' }}>{dim.target}</span>
               </div>
             </div>
           );
@@ -234,38 +170,38 @@ export const TrainingReadinessCard = ({ readinessData, loading = false }) => {
       </div>
 
       {/* Explanation & Bottlenecks */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
         {/* Narrative */}
-        <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800/80">
-          <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Info size={14} className="text-sky-400" />
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Info size={13} style={{ color: 'var(--status-info)' }} />
             Scientific Readiness Assessment
           </h4>
-          <p className="text-xs text-slate-300 leading-relaxed mb-3">
+          <p style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
             {explanation}
           </p>
-          <div className="p-2.5 rounded bg-slate-800/50 border border-slate-700/50 text-xs text-slate-300">
-            <strong className="text-sky-400 block mb-0.5">Operational Guidance:</strong>
+          <div style={{ padding: '0.6rem 0.8rem', borderRadius: '4px', background: 'var(--bg-secondary)', border: '1px solid var(--border-divider)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--status-info)', display: 'block', marginBottom: '0.2rem' }}>Operational Guidance:</strong>
             {recommendation}
           </div>
         </div>
 
-        {/* Actionable Bottlenecks */}
-        <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-800/80">
-          <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <AlertCircle size={14} className="text-amber-400" />
+        {/* Bottlenecks */}
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', borderRadius: '6px', padding: '1rem' }}>
+          <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <AlertCircle size={13} style={{ color: '#B7791F' }} />
             Identified Training Bottlenecks ({bottlenecks.length})
           </h4>
           {bottlenecks.length === 0 ? (
-            <div className="flex items-center gap-2 text-xs text-emerald-400 py-2">
-              <CheckCircle2 size={16} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: '#287A4B', padding: '0.4rem 0' }}>
+              <CheckCircle2 size={15} />
               <span>No critical bottlenecks detected. Dataset is fully ready for supervised training.</span>
             </div>
           ) : (
-            <ul className="space-y-2">
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {bottlenecks.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                  <span className="text-amber-400 font-bold shrink-0 mt-0.5">•</span>
+                <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#B7791F', fontWeight: 700, flexShrink: 0, marginTop: '0.1rem' }}>•</span>
                   <span>{item}</span>
                 </li>
               ))}
