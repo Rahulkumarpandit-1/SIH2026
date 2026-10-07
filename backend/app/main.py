@@ -32,11 +32,13 @@ async def lifespan(app: FastAPI):
 
     # Pre-warm in-memory pipeline cache on startup so all subsequent HTTP requests respond in <2ms
     try:
+        import gc
         from app.api.service import PipelineService
         with SessionLocal() as db:
             logger.info("Pre-warming pipeline cache on startup...")
             PipelineService.get_analyzed_data(db)
             logger.info("Pipeline cache successfully pre-warmed.")
+        gc.collect()
     except Exception as e:
         logger.warning(f"Pipeline cache pre-warm on startup: {e}")
 
@@ -77,6 +79,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# GZip compression for fast payload transfers (>1KB automatically compressed)
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Mount API routers under /api
 app.include_router(dashboard_router)

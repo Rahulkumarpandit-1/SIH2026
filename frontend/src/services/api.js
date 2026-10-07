@@ -14,16 +14,23 @@ const getApiBaseUrl = () => {
   if (import.meta.env.DEV) {
     return 'http://127.0.0.1:8000';
   }
-  // Default to hosted Render API when running on Vercel without env var
+  // Default to hosted Render API in production
   return 'https://sih2026-api.onrender.com';
 };
 
 export const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 15000,  // 15s — fast failover to instant cache if backend cold-starts
+  timeout: 20000,  // 20s — allows full national datasets (3800+ records) to complete safely
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Client for the health probe
+const healthClient = axios.create({
+  baseURL: getApiBaseUrl(),
+  timeout: 8000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
 // Helper to ensure response is valid JSON object or array, not an HTML fallback page
@@ -32,11 +39,30 @@ const ensureObject = (data) => (data && typeof data === 'object' && !Array.isArr
 
 export const apiService = {
   getHealth: async () => {
-    const response = await apiClient.get('/api/health');
-    if (typeof response.data === 'string' && response.data.includes('<!doctype')) {
-      throw new Error('Received HTML instead of JSON from API');
+    try {
+      const response = await healthClient.get('/api/health');
+      if (typeof response.data === 'string' && response.data.includes('<!doctype')) {
+        throw new Error('Received HTML instead of JSON from API');
+      }
+      return response.data;
+    } catch (err) {
+      // If primary base URL failed, check fallback candidates (direct 127.0.0.1:8000, then Render)
+      const candidates = ['http://127.0.0.1:8000', 'https://sih2026-api.onrender.com'];
+      for (const candidate of candidates) {
+        if (candidate === healthClient.defaults.baseURL) continue;
+        try {
+          const res = await axios.get(`${candidate}/api/health`, { timeout: 3500 });
+          if (res.data && typeof res.data === 'object' && res.data.status === 'healthy') {
+            apiClient.defaults.baseURL = candidate;
+            healthClient.defaults.baseURL = candidate;
+            return res.data;
+          }
+        } catch {
+          // Continue to next candidate
+        }
+      }
+      throw err;
     }
-    return response.data;
   },
 
   getSummary: async (region) => {

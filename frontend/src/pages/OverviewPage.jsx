@@ -127,10 +127,19 @@ export const OverviewPage = ({
 
     const lastUpdate = summary?.last_data_update || refreshStatus?.last_success || refreshStatus?.last_checked;
     const nextRefresh = summary?.next_refresh_time || refreshStatus?.next_scheduled_refresh;
-    const liveObsCount = summary?.live_observations_count ?? safeObs.filter(o => o.stream_type === 'near_real_time').length;
-    const liveClusterCount = safeClusters.filter(c => c.stream_type === 'near_real_time' && !c._isDemo).length;
+    const liveObsCount = isOnline ? (summary?.live_observations_count ?? safeObs.filter(o => o.stream_type === 'near_real_time').length) : 0;
+    const liveClusterCount = isOnline ? safeClusters.filter(c => c.stream_type === 'near_real_time' && !c._isDemo).length : 0;
     const historicalObsCount = Math.max(0, totalObs - liveObsCount);
     const historicalClusterCount = Math.max(0, totalClust - liveClusterCount);
+
+    let lastUpdateStr;
+    if (!isOnline) {
+      lastUpdateStr = 'Offline Baseline (Live Telemetry Disconnected)';
+    } else if (lastUpdate) {
+      lastUpdateStr = formatTimestampWithRelative(lastUpdate, 'Updated');
+    } else {
+      lastUpdateStr = 'Live Stream Connected';
+    }
 
     return {
       totalObs,
@@ -139,7 +148,7 @@ export const OverviewPage = ({
       ruralCount: ruralCount || (totalObs > 0 ? totalObs - Math.round(totalObs * 0.91) : 0),
       verifiedCount,
       unlabeledCount: unlabeledCount || totalObs,
-      lastUpdateStr: formatTimestampWithRelative(lastUpdate, 'Updated'),
+      lastUpdateStr,
       nextRefreshStr: formatToIST(nextRefresh),
       liveObsCount,
       historicalObsCount,
@@ -150,7 +159,7 @@ export const OverviewPage = ({
       modCount: summary?.moderate_count ?? safeRisk.filter(r => r.risk_level === 'MODERATE').length,
       lowCount: summary?.low_count ?? safeRisk.filter(r => r.risk_level === 'LOW').length,
     };
-  }, [summary, safeObs, safeClusters, safeRisk, qualityReport, refreshStatus]);
+  }, [summary, safeObs, safeClusters, safeRisk, qualityReport, refreshStatus, isOnline]);
 
   // Operational 4-Tier Recency Breakdown & Telemetry Audit (Phase 9)
   const validationMetrics = useMemo(() => {
@@ -180,15 +189,19 @@ export const OverviewPage = ({
       }
     });
 
-    const lastSyncTime = refreshStatus?.last_success || summary?.last_data_update || refreshStatus?.last_checked;
+    const lastSyncTime = refreshStatus?.last_success || (isOnline ? summary?.last_data_update : null) || refreshStatus?.last_checked;
 
     return {
-      liveIncidents,
+      liveIncidents: isOnline ? liveIncidents : 0,
       recentIncidents,
-      historicalIncidents,
+      historicalIncidents: isOnline ? historicalIncidents : (liveIncidents + historicalIncidents),
       demoRecords,
-      lastSyncStr: lastSyncTime ? formatToIST(lastSyncTime) : 'Sync pending',
-      latestLiveDetectionStr: latestLiveTimestamp ? formatToIST(latestLiveTimestamp) : 'None in last 24h',
+      lastSyncStr: isOnline 
+        ? (lastSyncTime ? formatToIST(lastSyncTime) : 'Sync active')
+        : 'Offline Baseline (API Unreachable)',
+      latestLiveDetectionStr: isOnline 
+        ? (latestLiveTimestamp ? formatToIST(latestLiveTimestamp) : 'None in last 24h')
+        : 'None (Stream Offline)',
       feedStatus: isOnline ? 'ONLINE' : 'OFFLINE',
     };
   }, [safeClusters, refreshStatus, summary, isOnline]);
@@ -249,21 +262,36 @@ export const OverviewPage = ({
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <div className="live-dot" />
-              <strong style={{ fontSize: '0.92rem', letterSpacing: '0.02em' }}>
-                DATA FEED ACTIVE &bull; Near-Real-Time Satellite Thermal Monitoring
-              </strong>
+              {isOnline ? (
+                <>
+                  <div className="live-dot" />
+                  <strong style={{ fontSize: '0.92rem', letterSpacing: '0.02em', color: 'var(--text-main)' }}>
+                    DATA FEED ACTIVE &bull; Near-Real-Time Satellite Thermal Monitoring
+                  </strong>
+                </>
+              ) : (
+                <>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                  <strong style={{ fontSize: '0.92rem', letterSpacing: '0.02em', color: '#D97706' }}>
+                    SATELLITE STREAM OFFLINE &bull; Operating in Offline Baseline Reference Mode
+                  </strong>
+                </>
+              )}
             </div>
             <div className="font-mono text-secondary" style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
               <span>Last data update: <strong>{liveStats.lastUpdateStr}</strong></span>
-              <NextSatelliteCountdown
-                nextRefreshTime={summary?.next_refresh_time || refreshStatus?.next_scheduled_refresh}
-                onCountdownComplete={() => {
-                  apiService.getRefreshStatus().then((r) => {
-                    if (r) setRefreshStatus(r);
-                  }).catch(() => null);
-                }}
-              />
+              {isOnline ? (
+                <NextSatelliteCountdown
+                  nextRefreshTime={summary?.next_refresh_time || refreshStatus?.next_scheduled_refresh}
+                  onCountdownComplete={() => {
+                    apiService.getRefreshStatus().then((r) => {
+                      if (r) setRefreshStatus(r);
+                    }).catch(() => null);
+                  }}
+                />
+              ) : (
+                <span style={{ color: 'var(--text-muted)' }}>&bull; Live Satellite Checks: <strong>Paused (API Offline)</strong></span>
+              )}
             </div>
           </div>
 

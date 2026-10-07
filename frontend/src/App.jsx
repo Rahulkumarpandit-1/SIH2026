@@ -24,7 +24,7 @@ import { compareOperationalPriority, calculateOperationalPriority } from './util
 
 // ─── Resilient fetch helper ───────────────────────────────────────────────────
 // Retries with back-off. Never throws: on failure returns the fallback value.
-async function resilientFetch(fetchFn, fallback, retries = 1, baseDelayMs = 500) {
+async function resilientFetch(fetchFn, fallback, retries = 1, baseDelayMs = 200) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const result = await fetchFn();
@@ -77,43 +77,41 @@ export const AppContent = () => {
 
     const regionParam = currentRegionCode === 'ALL_INDIA' ? undefined : currentRegionCode;
 
-    // 1. Health probe — determines if backend is reachable
-    let backendOnline = false;
-    try {
-      await apiService.getHealth();
-      backendOnline = true;
-      setIsOnline(true);
-    } catch {
-      setIsOnline(false);
-    }
+    // 1. Fire health probe AND all data fetches in parallel — no sequential gating.
+    const healthProbe = apiService.getHealth().then(() => true).catch(() => false);
 
-    if (!backendOnline) {
-      // If we already have real data in state, keep showing it (stale-cache).
-      // Only show the full demo fallback if this is the very first load.
-      if (!hasRealData.current) {
-        console.warn('[App] Backend offline on first load — showing DEMO fallback.');
-        setObservations(NATIONAL_OBSERVATIONS.map((o) => ({ ...o, _isDemo: true })));
-        setClusters(NATIONAL_CLUSTERS.map((c) => ({ ...c, _isDemo: true })));
-        const demoRisk = NATIONAL_RISK_DATA.map((r) => ({ ...r, _isDemo: true }));
-        setRiskData(demoRisk);
-        setSummary(NATIONAL_SUMMARY);
-        setSelectedIncident(demoRisk[0]);
-      } else {
-        // Stale data stays — just show a non-blocking warning
-        setErrorMessage('NASA FIRMS API temporarily unreachable. Displaying last known telemetry.');
-      }
-      setIsLoading(false);
-      setIsRefreshing(false);
-      return;
-    }
-
-    // 2. Fetch all core telemetry — individual resilient fetches (independent failures)
-    const [summaryRes, obsRes, clustersRes, riskRes] = await Promise.all([
+    // 2. Kick off all core telemetry fetches immediately
+    const dataFetches = Promise.all([
       resilientFetch(() => apiService.getSummary(regionParam), null),
       resilientFetch(() => apiService.getObservations(undefined, regionParam), []),
       resilientFetch(() => apiService.getClusters(regionParam), []),
       resilientFetch(() => apiService.getRisk(regionParam), []),
     ]);
+
+    // 3. Await health probe and data fetches
+    const [backendOnline, [summaryRes, obsRes, clustersRes, riskRes]] = await Promise.all([
+      healthProbe,
+      dataFetches,
+    ]);
+
+    // If healthProbe passed OR any real data arrived from the endpoints, the backend IS online!
+    const hasApiData = Boolean(summaryRes && typeof summaryRes.total_observations === 'number') || (Array.isArray(obsRes) && obsRes.length > 0);
+    const isActuallyOnline = backendOnline || hasApiData;
+
+    setIsOnline(isActuallyOnline);
+
+    if (!isActuallyOnline) {
+      setErrorMessage('NASA FIRMS API connection is currently offline. Operating in Offline Baseline Reference Mode (cached telemetry).');
+      setSummary((prev) => ({
+        ...(prev || NATIONAL_SUMMARY),
+        live_observations_count: 0,
+        monitoring_mode: 'OFFLINE_REFERENCE',
+        last_data_update: null
+      }));
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
 
     const safeObs      = Array.isArray(obsRes)      ? obsRes      : [];
     const safeClusters = Array.isArray(clustersRes) ? clustersRes : [];

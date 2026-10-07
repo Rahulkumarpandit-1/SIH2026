@@ -371,17 +371,26 @@ export const GISExplorerPage = ({
 
             {/* Hotspot Observation Points */}
             {showHotspots && filteredObservations.map((obs) => {
-              const rColor = getRiskColor(obs.risk_level);
+              const obsLevel = String(obs.risk_level || '').toUpperCase();
+              const obsScore = obs.risk_score;
+              const rColor = (obsLevel === 'CRITICAL' || (obsScore !== undefined && obsScore >= 75) || (obs.frp && obs.frp >= 40) || (obs.brightness && obs.brightness >= 360))
+                ? '#EF4444'
+                : (obsLevel === 'HIGH' || (obsScore !== undefined && obsScore >= 50) || (obs.frp && obs.frp >= 20) || (obs.brightness && obs.brightness >= 340))
+                ? '#F97316'
+                : (obsLevel === 'MODERATE' || obsLevel === 'MEDIUM' || (obsScore !== undefined && obsScore >= 25) || (obs.frp && obs.frp >= 10) || (obs.brightness && obs.brightness >= 325))
+                ? '#EAB308'
+                : '#10B981';
+              const isLiveObs = obs.stream_type === 'near_real_time';
               return (
                 <CircleMarker
                   key={`obs-${obs.observation_id}`}
                   center={[obs.latitude, obs.longitude]}
-                  radius={5}
+                  radius={isLiveObs ? 2.0 : 1.2}
                   pathOptions={{
                     fillColor: rColor,
-                    fillOpacity: 0.8,
+                    fillOpacity: isLiveObs ? 0.85 : 0.5,
                     color: isDark ? '#161B22' : '#FFFFFF',
-                    weight: 1
+                    weight: isLiveObs ? 0.6 : 0.3
                   }}
                 >
                   <Tooltip sticky>
@@ -405,55 +414,54 @@ export const GISExplorerPage = ({
               const isHistorical = temporal.status === 'HISTORICAL';
               const isSelected = selectedCluster?.cluster_id === cluster.cluster_id;
 
-              const markerColor =
-                priority.level === 'CRITICAL' ? '#EF4444' :
-                priority.level === 'HIGH'     ? '#F97316' :
-                priority.level === 'MEDIUM'   ? '#EAB308' : '#10B981';
+              const rScore = riskMeta?.risk_score ?? cluster.risk_score ?? 0;
+              const rLevel = String(riskMeta?.risk_level ?? cluster.risk_level ?? priority.level ?? '').toUpperCase();
+              const markerColor = getRiskColor(rLevel, rScore);
 
               // Mute historical clusters visually
-              const fillOpacity = isHistorical ? 0.30 : 0.95;
+              const fillOpacity = isHistorical ? 0.60 : 0.90;
               const rColor = markerColor;
-              const rScore = riskMeta?.risk_score ?? cluster.risk_score ?? 0;
-              const rLevel = riskMeta?.risk_level ?? cluster.risk_level ?? 'LOW';
 
-              const radius = priority.level === 'CRITICAL' ? 10 : priority.level === 'HIGH' ? 8.5 : priority.level === 'MEDIUM' ? 7 : 5.5;
+              // Crisp, professional radii scaled by operational priority (Critical: 5.5, High: 4.2, Medium: 3.2, Low: 2.5)
+              const radius = priority.level === 'CRITICAL' ? 5.5 : priority.level === 'HIGH' ? 4.2 : priority.level === 'MEDIUM' ? 3.2 : 2.5;
 
+              // Status Ring — Subtle radar outline without heavy fill tint
               const ringConfig = {
-                LIVE:       { color: '#10B981', dashArray: null,  weight: 2.5, fillOpacity: 0.18, radius: radius + 4,   className: 'gis-pulse-ring-live' },
-                RECENT:     { color: '#3B82F6', dashArray: null,  weight: 2.0, fillOpacity: 0.10, radius: radius + 3.2, className: '' },
-                HISTORICAL: { color: '#6B7280', dashArray: '4,4', weight: 1.0, fillOpacity: 0,    radius: radius + 2.5, className: '' },
-                DEMO:       { color: '#F59E0B', dashArray: '3,3', weight: 1.8, fillOpacity: 0.10, radius: radius + 3,   className: '' },
+                LIVE:       { color: '#10B981', dashArray: null,  weight: 0.9, fillOpacity: 0, radius: radius + 1.8, className: 'gis-pulse-ring-live' },
+                RECENT:     { color: '#3B82F6', dashArray: null,  weight: 0.8, fillOpacity: 0, radius: radius + 1.4, className: '' },
+                HISTORICAL: { color: '#6B7280', dashArray: '2,3', weight: 0.6, fillOpacity: 0, radius: radius + 1.2, className: '' },
+                DEMO:       { color: '#F59E0B', dashArray: '2,2', weight: 0.8, fillOpacity: 0, radius: radius + 1.4, className: '' },
               };
               const ring = ringConfig[temporal.status] || ringConfig.HISTORICAL;
 
               return (
                 <React.Fragment key={`cluster-group-${cluster.cluster_id}`}>
-                  {/* CRITICAL + LIVE only: Pulsing red halo */}
+                  {/* CRITICAL + LIVE only: Subtle pulsing red halo */}
                   {priority.level === 'CRITICAL' && isLive && (
                     <CircleMarker
                       center={[cluster.centroid_latitude, cluster.centroid_longitude]}
-                      radius={radius + 8}
+                      radius={radius + 3.2}
                       pathOptions={{
                         fillColor: '#EF4444',
-                        fillOpacity: 0.40,
+                        fillOpacity: 0.16,
                         color: '#DC2626',
-                        weight: 2,
+                        weight: 0.9,
                         className: 'gis-pulse-halo-crit',
                         interactive: false,
                       }}
                     />
                   )}
 
-                  {/* HIGH + LIVE only: Orange halo */}
+                  {/* HIGH + LIVE only: Subtle orange halo */}
                   {priority.level === 'HIGH' && isLive && (
                     <CircleMarker
                       center={[cluster.centroid_latitude, cluster.centroid_longitude]}
-                      radius={radius + 6}
+                      radius={radius + 2.4}
                       pathOptions={{
                         fillColor: '#F97316',
-                        fillOpacity: 0.30,
+                        fillOpacity: 0.12,
                         color: '#EA580C',
-                        weight: 1.8,
+                        weight: 0.8,
                         className: 'gis-pulse-halo-high',
                         interactive: false,
                       }}
@@ -483,7 +491,7 @@ export const GISExplorerPage = ({
                       fillColor: markerColor,
                       fillOpacity,
                       color: isSelected ? '#00E5FF' : (isDark ? '#0D1117' : '#FFFFFF'),
-                      weight: isSelected ? 2.5 : 1.5,
+                      weight: isSelected ? 2.0 : 0.6,
                     }}
                     eventHandlers={{ click: () => handleClusterClick(cluster) }}
                   >

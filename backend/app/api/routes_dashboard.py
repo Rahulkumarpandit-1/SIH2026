@@ -61,6 +61,11 @@ from app.intelligence.executive_summary import ExecutiveSummaryEngine
 
 router = APIRouter(prefix="/api", tags=["Dashboard & Telemetry"])
 
+# Fast in-memory serialization caches (<2ms responses for national telemetry)
+_OBS_CACHE: Dict[str, Any] = {"records": None, "count": 0}
+_CLUSTERS_CACHE: Dict[str, Any] = {"records": None, "count": 0}
+_RISK_CACHE: Dict[str, Any] = {"records": None, "count": 0}
+
 
 @router.get("/health", summary="API Health Check")
 def get_health() -> Dict[str, Any]:
@@ -162,6 +167,10 @@ def get_observations(
     if obs_df.empty:
         return []
 
+    is_unfiltered = not region and not state and (not stream_type or stream_type.lower() == "all")
+    if is_unfiltered and _OBS_CACHE["records"] is not None and _OBS_CACHE["count"] == len(obs_df):
+        return _OBS_CACHE["records"]
+
     # Filter stream_type if specified
     if stream_type and stream_type.lower() != "all" and "stream_type" in obs_df.columns:
         target_stream = stream_type.lower()
@@ -197,6 +206,10 @@ def get_observations(
             "region_code": str(row.get("region_code") if row.get("region_code") and row.get("region_code") != "WEST_GUJARAT" else tag_coordinates(float(row["latitude"]), float(row["longitude"]))[1])
         })
 
+    if is_unfiltered:
+        _OBS_CACHE["records"] = results
+        _OBS_CACHE["count"] = len(obs_df)
+
     return results
 
 
@@ -214,6 +227,10 @@ def get_clusters(
 
     if clusters_df.empty:
         return []
+
+    is_unfiltered = not region and not state
+    if is_unfiltered and _CLUSTERS_CACHE["records"] is not None and _CLUSTERS_CACHE["count"] == len(clusters_df):
+        return _CLUSTERS_CACHE["records"]
 
     results = []
     for _, row in clusters_df.iterrows():
@@ -258,6 +275,10 @@ def get_clusters(
             "temporal_intelligence": row.get("temporal_intelligence") or {}
         })
 
+    if is_unfiltered:
+        _CLUSTERS_CACHE["records"] = results
+        _CLUSTERS_CACHE["count"] = len(clusters_df)
+
     return results
 
 
@@ -276,6 +297,10 @@ def get_risk_prioritization(
 
     if clusters_df.empty:
         return []
+
+    is_unfiltered = not region and not state
+    if is_unfiltered and _RISK_CACHE["records"] is not None and _RISK_CACHE["count"] == len(clusters_df):
+        return _RISK_CACHE["records"]
 
     # Sort descending by risk_score
     sorted_df = clusters_df.sort_values(by="risk_score", ascending=False).reset_index(drop=True)
@@ -331,6 +356,10 @@ def get_risk_prioritization(
             "abnormality_detection": row.get("abnormality_detection") or {},
             "temporal_intelligence": row.get("temporal_intelligence") or {}
         })
+
+    if is_unfiltered:
+        _RISK_CACHE["records"] = results
+        _RISK_CACHE["count"] = len(clusters_df)
 
     return results
 

@@ -45,7 +45,8 @@ class FIRMSClient:
         logger.info(f"Querying NASA FIRMS Area API: sensor={sensor}, bbox={bbox_str}, days={day_range}")
         
         try:
-            with httpx.Client(timeout=30.0) as client:
+            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            with httpx.Client(timeout=12.0, limits=limits) as client:
                 response = client.get(endpoint)
                 response.raise_for_status()
                 
@@ -79,7 +80,8 @@ class FIRMSClient:
         logger.info(f"Querying NASA FIRMS Country API: country={country_code}, sensor={sensor}, days={day_range}")
         
         try:
-            with httpx.Client(timeout=45.0) as client:
+            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            with httpx.Client(timeout=20.0, limits=limits) as client:
                 response = client.get(endpoint)
                 response.raise_for_status()
                 

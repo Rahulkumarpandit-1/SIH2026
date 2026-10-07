@@ -70,7 +70,7 @@ class HistoricalFIRMSIngester:
         
         test_url = f"{self.base_url}/area/csv/{self.map_key}/VIIRS_SNPP_NRT/69,20,74,24.5/1"
         try:
-            with httpx.Client(timeout=15.0) as client:
+            with httpx.Client(timeout=8.0) as client:
                 res = client.get(test_url)
                 if res.status_code == 200:
                     return {

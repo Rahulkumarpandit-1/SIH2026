@@ -78,6 +78,16 @@ class PipelineService:
         cls._cached_record_count = None
         cls._cached_ml = None
         cls._cached_quality_report = None
+        try:
+            from app.api.routes_dashboard import _OBS_CACHE, _CLUSTERS_CACHE, _RISK_CACHE
+            _OBS_CACHE["records"] = None
+            _OBS_CACHE["count"] = 0
+            _CLUSTERS_CACHE["records"] = None
+            _CLUSTERS_CACHE["count"] = 0
+            _RISK_CACHE["records"] = None
+            _RISK_CACHE["count"] = 0
+        except Exception:
+            pass
 
     @classmethod
     def get_refresh_status(cls) -> Dict[str, Any]:
@@ -195,16 +205,26 @@ class PipelineService:
                 axis=1
             )
 
-        # 3.5. Meteorological Context Enrichment (Open-Meteo)
-        from concurrent.futures import ThreadPoolExecutor
-        coords = [
-            (float(row.get("centroid_lat", 21.0)), float(row.get("centroid_lon", 71.0)))
-            for _, row in scored_clusters_df.iterrows()
-        ]
-        max_workers = min(max(len(coords), 1), 8)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            weather_contexts = list(executor.map(lambda pt: WeatherClient.get_weather_context(pt[0], pt[1]), coords))
+        # 3.5. Meteorological Context Enrichment (Open-Meteo) — Memory-efficient
+        # To strictly stay within Render's 512MB RAM limit, enrich top 20 prioritized incidents
+        # with live dispersion telemetry and use fast baseline meteorological parameters for remainder.
+        import gc
+        fallback_weather = WeatherClient._get_baseline_fallback()
+        weather_contexts = []
+        top_indices = set(scored_clusters_df.nlargest(min(20, len(scored_clusters_df)), "risk_score").index if "risk_score" in scored_clusters_df.columns else range(min(20, len(scored_clusters_df))))
+
+        for idx, row in scored_clusters_df.iterrows():
+            if idx in top_indices:
+                try:
+                    c_lat = float(row.get("centroid_lat", 21.0))
+                    c_lon = float(row.get("centroid_lon", 71.0))
+                    weather_contexts.append(WeatherClient.get_weather_context(c_lat, c_lon))
+                except Exception:
+                    weather_contexts.append(fallback_weather)
+            else:
+                weather_contexts.append(fallback_weather)
         scored_clusters_df["weather_context"] = weather_contexts
+        gc.collect()
 
         # 3.6. Geospatial Exposure & Consequence Analysis (Population, Infrastructure, Environment, Downwind)
         from app.spatial.exposure_engine import ExposureAnalysisService
