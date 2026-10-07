@@ -52,3 +52,6 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Runtime Raw Sensor Cache
+data/raw/
